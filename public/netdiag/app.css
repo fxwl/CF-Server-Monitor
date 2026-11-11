@@ -1,2 +1,0 @@
-@import url('/netdiag/assets/home.css');
-:root{color-scheme:light dark;--bg-card:#fff;--bg-surface:#f5f7fa;--text-primary:#24252b;--text-secondary:#606372;--text-tertiary:#9295a3;--border-subtle:#e1e4eb;--hairline:#e6e8ec;--progress-network:#607eb9}body{margin:0;background:var(--bg-surface);font-family:Inter,system-ui,sans-serif}@media(prefers-color-scheme:dark){:root{--bg-card:#18181b;--bg-surface:#111113;--text-primary:#ececf0;--text-secondary:#b1b1bd;--text-tertiary:#858594;--border-subtle:#303036;--hairline:#2d2d33;--progress-network:#8ba1db}}
