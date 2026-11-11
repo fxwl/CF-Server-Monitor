@@ -74,10 +74,13 @@ let flushDueAt = 0;
 let resolveFlushingPromise = null;
 let frontendSubscriberSnapshot = { checkedAt: 0, count: 0 };
 
-function normalizeTimestamp(value, fallback = Date.now()) {
+// Use the receiving Worker clock for obviously future-dated agent samples.
+// Small clock differences are tolerated; never persist timestamps beyond now.
+export function normalizeTimestamp(value, fallback = Date.now()) {
   const ts = Number(value);
   if (!Number.isFinite(ts) || ts <= 0) return fallback;
-  return ts < 10000000000 ? ts * 1000 : ts;
+  const ms = ts < 10000000000 ? ts * 1000 : ts;
+  return ms > fallback + 120000 ? fallback : ms;
 }
 
 export function normalizeAgentVersion(value) {
