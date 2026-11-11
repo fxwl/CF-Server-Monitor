@@ -66,7 +66,8 @@ function envPlugin() {
 }
 
 export default defineConfig({
-  plugins: [vue(), mkcert(), envPlugin()],
+  // CI tests use middleware mode and need no local TLS certificate download.
+  plugins: [vue(), ...(process.env.CFSM_SKIP_MKCERT === '1' ? [] : [mkcert()]), envPlugin()],
   base: process.env.VITE_BASE || '/',
   resolve: {
     alias: {
