@@ -2,12 +2,13 @@
 import upstream,{MetricsBroadcaster as UpstreamMetricsBroadcaster} from './index.js';
 import {loadSiteSettings} from './utils/settings.js';
 import {checkAuth} from './middleware/auth.js';
-import {handleNetworkAPI,maintain} from './netdiag/service.js';
+import {handleNetworkAPI} from './netdiag/service.js';
 import {handleStableApi} from './netdiag/stable-service.js';
 export class MetricsBroadcaster extends UpstreamMetricsBroadcaster {}
 const deps={loadSettings:loadSiteSettings,checkAuth};
 const DOWNLOADS=new Set(['install.sh','collector.py','manifest.json']);
-const WEB_ASSETS=new Set(['app.js','app.css','nav.css','home.js','home.css','visuals.js']);
+const WEB_ASSETS=new Set(['app.js','app.css','nav.css','home.js','home.css','nq-ui.js']);
+const NQ_FILES=new Set(['install.sh','NodeQuality.sh','runner.py','manifest.json','AGPL-3.0-LICENSE','vendor/ip.sh','vendor/net.sh','vendor/hardware.sh']);
 async function asset(request,env,file){
   if(!env.ASSETS)return new Response('Asset binding missing',{status:503});
   const response=await env.ASSETS.fetch(new Request(new URL(file==='index.html'?'/netdiag/':'/netdiag/'+file,request.url),{method:'GET'}));
@@ -24,7 +25,7 @@ export default {
     if(request.method==='GET'){
       if(path==='/netdiag'||path==='/netdiag/'||path==='/netdiag/index.html')return asset(request,env,'index.html');
       if(path.startsWith('/netdiag/releases/1.2.0/')){const file=path.slice('/netdiag/releases/1.2.0/'.length);return DOWNLOADS.has(file)?asset(request,env,'stable/'+file):new Response('Not found',{status:404});}
-      if(path.startsWith('/netdiag/releases/1.3.0/')){const file=path.slice('/netdiag/releases/1.3.0/'.length);return DOWNLOADS.has(file)?asset(request,env,'releases/1.3.0/'+file):new Response('Not found',{status:404});}
+      if(path.startsWith('/netdiag/nq/')){const file=path.slice('/netdiag/nq/'.length);return NQ_FILES.has(file)?asset(request,env,'nq/'+file):new Response('Not found',{status:404});}
       if(path.startsWith('/netdiag/download/')){const file=path.slice('/netdiag/download/'.length);return DOWNLOADS.has(file)?asset(request,env,file):new Response('Not found',{status:404});}
       if(path.startsWith('/netdiag/assets/')){const file=path.slice('/netdiag/assets/'.length);return WEB_ASSETS.has(file)?asset(request,env,file):new Response('Not found',{status:404});}
     }
@@ -42,7 +43,8 @@ export default {
     return response;
   },
   async scheduled(controller,env,ctx){
+    // Keep the original resource and ICMP sampling. The old hourly external
+    // risk-lookups were failing; complete NQ now runs locally once per week.
     await upstream.scheduled(controller,env,ctx);
-    if(controller.cron==='0 * * * *')ctx.waitUntil(maintain(env,deps).catch(()=>console.warn(JSON.stringify({module:'netdiag',event:'maintenance_failed'}))));
   }
 };

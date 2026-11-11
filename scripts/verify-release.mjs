@@ -13,12 +13,21 @@ for(const [file,key] of [['collector.py','collector_sha256'],['install.sh','inst
 for(const arch of ['amd64','arm64'])assert.ok(fs.statSync('public/agent/cf-probe-linux-'+arch).size>1000000);
 assert.ok(!/^\s+schedule:/m.test(fs.readFileSync('.github/workflows/sync.yml','utf8')));
 assert.ok(fs.readFileSync('public/netdiag/stable/install.sh','utf8').includes(sums.collector_sha256));
-const next=JSON.parse(fs.readFileSync('public/netdiag/releases/1.3.0/manifest.json','utf8'));
-assert.equal(next.version,'1.3.0');
-for(const [file,key] of [['collector.py','collector_sha256'],['install.sh','install_sha256']])
- assert.equal(crypto.createHash('sha256').update(fs.readFileSync('public/netdiag/releases/1.3.0/'+file)).digest('hex'),next[key]);
-assert.ok(fs.readFileSync('public/netdiag/releases/1.3.0/install.sh','utf8').includes(next.collector_sha256));
-assert.ok(fs.readFileSync('src/network-entry.js','utf8').includes('/netdiag/releases/1.3.0/'));
-assert.ok(fs.readFileSync('src/network-entry.js','utf8').includes("'visuals.js'"));
-assert.equal(lock.diagnostics_version,'1.3.0');
-console.log('Frozen release, binary, historic 1.2.0 and new 1.3.0 checksums verified.');
+const nq=JSON.parse(fs.readFileSync('public/netdiag/nq/manifest.json','utf8'));
+assert.equal(nq.version,'1.0.0');
+assert.equal(nq.auto_update,false);
+assert.equal(nq.external_upload,false);
+assert.equal(nq.schedule,'Fri *-*-* 21:00:00 Asia/Shanghai');
+assert.equal(lock.nq_upstream_commit,nq.upstream_commit);
+for(const [name,expected] of Object.entries(nq.files))
+  assert.equal(crypto.createHash('sha256').update(fs.readFileSync('public/netdiag/nq/'+name)).digest('hex'),expected,'NQ '+name);
+assert.equal(crypto.createHash('sha256').update(fs.readFileSync('public/netdiag/nq/install.sh')).digest('hex'),nq.install_sha256);
+const launcher=fs.readFileSync('public/netdiag/nq/NodeQuality.sh','utf8');
+assert.ok(launcher.includes('CFSM_NQ_OUTPUT_DIR'));
+assert.ok(!launcher.includes('https://api.nodequality.com/api/v1/record'));
+assert.ok(launcher.includes(nq.benchos_sha256_amd64));
+assert.ok(launcher.includes(nq.benchos_sha256_arm64));
+assert.ok(config.includes('main = "src/network-entry.js"'));
+assert.ok(fs.readFileSync('src/network-entry.js','utf8').includes("path.startsWith('/netdiag/nq/')"));
+assert.ok(!fs.readFileSync('src/network-entry.js','utf8').includes("ctx.waitUntil(maintain"));
+console.log('Frozen release, NQ pinned checksums, private capture, agent binaries, disabled hourly quality and upstream sync verified.');

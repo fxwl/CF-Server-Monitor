@@ -1,5 +1,5 @@
 {
-  "release": "2.8.7-fuzhou.20261112.1",
+  "release": "2.8.7-fuzhou.20261112.nq1",
   "upstream_version": "2.8.7",
   "merged_base": "031206f972e3ed0915f694f1046af585a1b5758a",
   "prior_ui_commit": "c1d681c7ab1f739500547f0acd4d591f1be0f173",
@@ -7,7 +7,7 @@
   "theme_revision": "538c95d024392771850b70c5ac06285261cf6acf",
   "agent_revision": "85208b81487e919aa8585e538ae82710e90961d2",
   "agent_mode": "linux-unprivileged-icmp",
-  "diagnostics_version": "1.3.0",
+  "diagnostics_version": "1.2.0",
   "targets": {
     "cu": "36.248.48.211",
     "ct": "218.85.157.99",
@@ -23,8 +23,16 @@
   "automatic_diagnostics_upgrade": false,
   "dependency_install": "npm ci",
   "update_policy": "Only reviewed security, reliability, or explicitly requested changes; never reset the customized main branch to upstream.",
-  "media_ai_checks": 11,
-  "media_ai_mode": "VPS IPv4 HTTPS direct / source-attributed",
-  "quality_fallback": "VPS direct provider observation",
-  "previous_frozen_commit": "a55259f2a79fba44da03f5cd475d0afea25ff06b"
+  "nq_upstream_commit": "a92fca6c0067df29ddd03fdc2fee6f3000f64545",
+  "nq_ipquality_commit": "8e685686e1df89119d9aeb182a9dedbc88da19e3",
+  "nq_netquality_commit": "e91cd4963c2676da0e12bcece8ccb145e04a6735",
+  "nq_hardwarequality_commit": "229e1934dc4681c4e2e304f25996ad85c4025f16",
+  "nq_installer_version": "1.0.0",
+  "nq_schedule": "Fri *-*-* 21:00:00 Asia/Shanghai",
+  "nq_public_report_upload": false,
+  "nq_local_json_retention_weeks": 13,
+  "nq_d1_history_weeks": 26,
+  "legacy_diags_timer": "Disabled when weekly NQ installer is applied; main cf-probe remains enabled",
+  "daily_worker_quality_checks": false,
+  "nq_ui": "Native AnotherLuminaPlus risk charts with full admin-only source JSON"
 }
