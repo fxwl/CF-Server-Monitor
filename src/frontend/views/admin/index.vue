@@ -1894,7 +1894,7 @@ const buildInstallAsCfsmCommand = (command, runStep) => {
     'as_root loginctl enable-linger cfsm',
     'CFSM_GID=$(id -g cfsm)',
     'if [ -f /proc/sys/net/ipv4/ping_group_range ]; then',
-    '  as_root sh -c "printf \'net.ipv4.ping_group_range = %s %s\\n\' \"$1\" \"$1\" > /etc/sysctl.d/90-cfsm-icmp.conf" sh "$CFSM_GID"',
+    '  printf "net.ipv4.ping_group_range = %s %s\\n" "$CFSM_GID" "$CFSM_GID" | as_root tee /etc/sysctl.d/90-cfsm-icmp.conf >/dev/null',
     '  as_root sysctl -p /etc/sysctl.d/90-cfsm-icmp.conf',
     'fi'
   )
