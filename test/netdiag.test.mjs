@@ -104,7 +104,7 @@ test('homepage respects hidden servers for public viewers',async()=>{
   assert.deepEqual((await admin.json()).servers.map(x=>x.id),['server-1','server-2']);
 });
 
-test('homepage includes carrier summaries but never reveals raw network trace hops',async()=>{
+test('homepage includes carrier summaries and only public hop evidence',async()=>{
   const env=await setup();
   const p=providerMock();
   await refreshQuality(env,'server-1',p.fetcher);
@@ -115,15 +115,16 @@ test('homepage includes carrier summaries but never reveals raw network trace ho
   assert.equal(home.status,200);
   const body=await home.json();
   const server=body.servers[0];
-  assert.equal(server.quality.providers.length,2);
+  assert.equal(server.quality.providers.length,4);
   assert.equal(server.quality.providers[0].risk,0);
   assert.equal(server.quality.providers[0].flags.proxy,false);
   assert.equal(server.route.routes.length,3);
   assert.deepEqual(server.route.routes.map(x=>x.key),['cu','ct','cm']);
   assert.equal(server.route.routes[0].median_ms,39);
   assert.ok(server.route.routes[0].lines[0].includes('9929'));
-  assert.ok(!JSON.stringify(server).includes('218.105.2.1'));
-  assert.ok(!JSON.stringify(server).includes('hops'));
+  assert.ok(server.route.routes[0].visible_hops.some(h=>h.ip==='218.105.2.1'));
+  assert.ok(!JSON.stringify(server).includes('10.0.0.1'));
+  assert.ok(!JSON.stringify(server).includes('rtts_ms'));
   assert.equal(env.DB.sqlite.prepare('SELECT count(*) n FROM metrics_history').get().n,2);
 });
 
@@ -133,7 +134,7 @@ test('homepage marks changed IP or old observations stale rather than treating t
   assert.equal(summary.route.stale,true);
   assert.equal(summary.route.routes[0].lines[0],'CN2');
   assert.equal(summary.route.routes[1].status,'pending');
-  assert.deepEqual(Object.keys(summary.route.routes[0]).sort(),['change','confidence','key','lines','median_ms','reached','status'].sort());
+  assert.deepEqual(Object.keys(summary.route.routes[0]).sort(),['change','confidence','key','lines','median_ms','reached','segments','status','summary','visible_hops'].sort());
 });
 
 test('homepage presentation keeps unknown flags distinct from false and preserves operator ordering',()=>{
