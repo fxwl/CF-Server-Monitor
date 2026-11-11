@@ -140,14 +140,59 @@ export async function maintain(env,deps) {
   const list=await env.DB.prepare("SELECT s.id,MAX(r.created_at) last_check FROM servers s LEFT JOIN netdiag_runs r ON r.server_id=s.id AND r.kind='quality' GROUP BY s.id ORDER BY COALESCE(MAX(r.created_at),0) ASC LIMIT 2").all();
   await Promise.all((list.results||[]).map(async s=>{try{await refreshQuality(env,s.id,deps?.fetch||fetch,now);}catch(e){console.warn(JSON.stringify({module:'netdiag',event:'scheduled_check_unavailable',server_id:s.id,code:e.code||'internal_error'}));}}));
 }
+// Homepage data follows the site's existing public/private visibility policy.
+// Only expose a compact summary: never the full route hops, source tokens or raw provider replies.
+export function summarizeHomeServer(server, ipInfo, quality, route, now = Date.now()) {
+  const currentIp = ipInfo?.ip || null;
+  const stale = record => Boolean(record) && (record.ip !== currentIp || now - record.created_at > 26 * 3600000);
+  const sources = Array.isArray(quality?.providers) ? quality.providers : [];
+  const providers = sources.slice(0, 3).map(source => ({
+    provider: text(source.provider, 40),
+    status: source.status === 'ok' ? 'ok' : 'unavailable',
+    asn: text(source.asn, 60) || null,
+    operator: text(source.operator, 100) || null,
+    country: text(source.country, 60) || null,
+    city: text(source.city, 60) || null,
+    network_type: text(source.network_type, 45) || null,
+    risk: typeof source.risk === 'number' && Number.isFinite(source.risk) && source.risk >= 0 && source.risk <= 100 ? source.risk : null,
+    network_abuse_score: text(source.network_abuse_score, 50) || null,
+    flags: Object.fromEntries(['proxy', 'vpn', 'tor', 'hosting', 'abuser'].map(key => [key, typeof source.flags?.[key] === 'boolean' ? source.flags[key] : null]))
+  }));
+  const routes = ORDER.map(key => {
+    const entry = route?.routes?.find(item => item.key === key);
+    const ms = entry?.tcp?.median_ms;
+    return {
+      key,
+      status: entry?.status || 'pending',
+      median_ms: typeof ms === 'number' && Number.isFinite(ms) && ms >= 0 ? ms : null,
+      reached: entry?.reached === true,
+      lines: (Array.isArray(entry?.line?.labels) ? entry.line.labels : []).slice(0, 4).map(label => text(label, 80)),
+      confidence: entry?.line?.confidence === 'observed' ? 'observed' : 'unknown',
+      change: text(route?.changes?.find(item => item.key === key)?.status, 40) || null
+    };
+  });
+  return {
+    id: server.id,
+    name: text(server.name, 100),
+    region: text(server.region, 20),
+    ip: currentIp,
+    ip_seen_at: ipInfo?.seen_at || null,
+    quality: quality ? { status: quality.status, checked_at: quality.created_at, stale: stale(quality), providers } : null,
+    route: route ? { status: route.status, checked_at: route.created_at, stale: stale(route), routes } : null
+  };
+}
+
 export async function handleNetworkAPI(request,env,ctx,deps) {
   try{
     const url=new URL(request.url), path=url.pathname;
     if(request.method!=='GET'&&request.method!=='POST')throw new DiagnosticError('method_not_allowed',405);
     const isAgent=path==='/api/netdiag/report'||path==='/api/netdiag/config';
+    let homeIsAdmin = false;
     if(!isAgent){
       const sys=await deps.loadSettings(env.DB);
-      if(!await deps.checkAuth(request,env,sys))throw new DiagnosticError('unauthorized',401);
+      homeIsAdmin = await deps.checkAuth(request,env,sys);
+      // Summary-only access matches the homepage: anonymous only when the site is public.
+      if(!homeIsAdmin && !(path==='/api/netdiag/home' && request.method==='GET' && sys.is_public==='true'))throw new DiagnosticError('unauthorized',401);
       if(request.method==='POST'){
         const origin=request.headers.get('Origin');
         if((origin&&origin!==url.origin)||request.headers.get('Sec-Fetch-Site')==='cross-site'||request.headers.get('X-CFSM-Netdiag')!=='1')throw new DiagnosticError('invalid_request_origin',403);
@@ -173,6 +218,16 @@ export async function handleNetworkAPI(request,env,ctx,deps) {
       const limit=Math.min(20,Math.max(1,Math.floor(Number(url.searchParams.get('limit'))||10)));
       const rows=await env.DB.prepare('SELECT id,created_at,ip,status,payload FROM netdiag_runs WHERE server_id=? AND kind=? ORDER BY created_at DESC LIMIT ?').bind(id,kind,limit).all();
       return json({server_id:id,kind,records:(rows.results||[]).map(decode)});
+    }
+    if(path==='/api/netdiag/home'&&request.method==='GET'){
+      const list=await env.DB.prepare('SELECT * FROM servers ORDER BY sort_order LIMIT 100').all();
+      const visible=(list.results||[]).filter(server => homeIsAdmin || (server.is_hidden!==1 && server.is_hidden!=='1'));
+      const now=Date.now();
+      const servers=await Promise.all(visible.map(async server => {
+        const [ip,quality,route]=await Promise.all([latestIP(env.DB,server.id),lastRun(env.DB,server.id,'quality'),lastRun(env.DB,server.id,'route')]);
+        return summarizeHomeServer(server,ip,quality,route,now);
+      }));
+      return json({version:VERSION,generated_at:now,order:ORDER,servers});
     }
     if(path==='/api/netdiag/overview'&&request.method==='GET'){
       const sys=await deps.loadSettings(env.DB);

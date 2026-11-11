@@ -6,7 +6,7 @@ import {handleNetworkAPI,maintain} from './netdiag/service.js';
 export class MetricsBroadcaster extends UpstreamMetricsBroadcaster {}
 const deps={loadSettings:loadSiteSettings,checkAuth};
 const DOWNLOADS=new Set(['install.sh','collector.py','manifest.json']);
-const WEB_ASSETS=new Set(['app.js','app.css','nav.css']);
+const WEB_ASSETS=new Set(['app.js','app.css','nav.css','home.js','home.css']);
 async function asset(request,env,file){
   if(!env.ASSETS)return new Response('Asset binding missing',{status:503});
   const response=await env.ASSETS.fetch(new Request(new URL(file==='index.html'?'/netdiag/':'/netdiag/'+file,request.url),{method:'GET'}));
@@ -27,7 +27,25 @@ export default {
     }
     const response=await upstream.fetch(request,env,ctx);
     if(request.method==='GET'&&response.status===200&&response.headers.get('Content-Type')?.includes('text/html')&&['/','/admin','/admin/','/theme'].includes(path)){
-      return new HTMLRewriter().on('head',{element(e){e.append('<link rel="stylesheet" href="/netdiag/assets/nav.css">',{html:true});}}).on('body',{element(e){e.append('<a id="cfsm-netdiag-link" href="/netdiag">IP &#19982;&#32447;&#36335;</a>',{html:true});}}).transform(response);
+      const homepage=path==='/';
+      return new HTMLRewriter()
+        .on('head',{element(e){
+          if(homepage){
+            e.append('<link rel="stylesheet" href="/netdiag/assets/home.css">',{html:true});
+          }else{
+            e.append('<link rel="stylesheet" href="/netdiag/assets/nav.css">',{html:true});
+          }
+        }})
+        .on('body',{element(e){
+          if(homepage){
+            // Outside Vue's mount root: compatible with the external AnotherLumina theme.
+            e.prepend('<section id="cfsm-netdiag-home" aria-label="福州网络诊断"><div class="cfsm-netdiag-boot">正在加载福州线路概览…</div></section>',{html:true});
+            e.append('<script type="module" src="/netdiag/assets/home.js"></script>',{html:true});
+          }else{
+            e.append('<a id="cfsm-netdiag-link" href="/netdiag">IP &#19982;&#32447;&#36335;</a>',{html:true});
+          }
+        }})
+        .transform(response);
     }
     return response;
   },

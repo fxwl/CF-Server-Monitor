@@ -1,0 +1,50 @@
+/* Scoped to the injected homepage module; safe alongside built-in and external themes. */
+#cfsm-netdiag-home{--nd-bg:#101a2b;--nd-card:#17243a;--nd-border:#2c3b53;--nd-text:#e9f1fc;--nd-muted:#9cafc9;--nd-blue:#7fcfff;--nd-ok:#81d4b9;--nd-warn:#f3c988;box-sizing:border-box;width:100%;max-width:1480px;margin:16px auto 4px;padding:0 16px;position:relative;z-index:3;color:var(--nd-text);font:14px/1.5 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:normal}
+#cfsm-netdiag-home[hidden]{display:none!important}
+#cfsm-netdiag-home *,#cfsm-netdiag-home *::before,#cfsm-netdiag-home *::after{box-sizing:border-box}
+#cfsm-netdiag-home .nd-shell{padding:19px 22px 15px;border:1px solid var(--nd-border);background:var(--nd-bg);border-radius:18px;box-shadow:0 12px 40px rgba(0,0,0,.12)}
+#cfsm-netdiag-home .nd-top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:15px}
+#cfsm-netdiag-home .nd-heading{min-width:190px;max-width:720px}
+#cfsm-netdiag-home .nd-eyebrow{font-size:10px;letter-spacing:1.7px;color:var(--nd-blue);font-weight:700;margin-bottom:4px}
+#cfsm-netdiag-home .nd-title{margin:0;font-size:20px;line-height:1.3;font-weight:750;color:var(--nd-text)}
+#cfsm-netdiag-home .nd-subtitle{margin:5px 0 0;color:var(--nd-muted);font-size:12px}
+#cfsm-netdiag-home .nd-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#cfsm-netdiag-home .nd-sync{font-size:11px;color:var(--nd-muted)}
+#cfsm-netdiag-home .nd-refresh,#cfsm-netdiag-home .nd-view-all{appearance:none;background:var(--nd-card);color:var(--nd-text);border:1px solid var(--nd-border);border-radius:9px;font-size:12px;font-weight:600;font-family:inherit;line-height:1.35;padding:8px 12px;text-decoration:none;white-space:nowrap;cursor:pointer;min-height:34px}
+#cfsm-netdiag-home .nd-refresh:hover,#cfsm-netdiag-home .nd-view-all:hover{border-color:var(--nd-blue);color:var(--nd-blue)}
+#cfsm-netdiag-home .nd-refresh:disabled{opacity:.55;cursor:wait}
+#cfsm-netdiag-home .nd-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+#cfsm-netdiag-home .nd-card{background:var(--nd-card);border:1px solid var(--nd-border);border-radius:13px;padding:14px;min-width:0;display:flex;flex-direction:column;gap:10px}
+#cfsm-netdiag-home .nd-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+#cfsm-netdiag-home .nd-name{font-weight:750;font-size:14px;color:var(--nd-text);overflow-wrap:anywhere}
+#cfsm-netdiag-home .nd-state{color:var(--nd-warn);border:1px solid var(--nd-border);border-radius:99px;padding:2px 8px;font-size:10px;white-space:nowrap}
+#cfsm-netdiag-home .nd-state.is-ready{color:var(--nd-ok)}
+#cfsm-netdiag-home .nd-card-info{display:flex;flex-direction:column;gap:3px;min-height:55px}
+#cfsm-netdiag-home .nd-ip{font:600 12px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace;color:var(--nd-text);word-break:break-all}
+#cfsm-netdiag-home .nd-asn{font-size:11px;color:var(--nd-muted);overflow-wrap:anywhere}
+#cfsm-netdiag-home .nd-location,#cfsm-netdiag-home .nd-stale,#cfsm-netdiag-home .nd-muted{font-size:11px;color:var(--nd-muted)}
+#cfsm-netdiag-home .nd-stale{color:var(--nd-warn)}
+#cfsm-netdiag-home .nd-risk-line{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-height:20px}
+#cfsm-netdiag-home .nd-risk-score{font-size:11px;color:var(--nd-text);font-weight:600}
+#cfsm-netdiag-home .nd-multi-source{font-size:10px;color:var(--nd-muted)}
+#cfsm-netdiag-home .nd-flags{display:flex;flex-wrap:wrap;gap:5px}
+#cfsm-netdiag-home .nd-flag{border:1px solid var(--nd-border);border-radius:7px;padding:2px 6px;color:var(--nd-muted);font-size:10px}
+#cfsm-netdiag-home .nd-flag.is-alert{border-color:rgba(243,201,136,.55);color:var(--nd-warn)}
+#cfsm-netdiag-home .nd-flag.is-known{color:var(--nd-ok)}
+#cfsm-netdiag-home .nd-route-list{border-top:1px solid var(--nd-border);padding-top:8px;display:flex;flex-direction:column;gap:6px;margin-top:auto}
+#cfsm-netdiag-home .nd-route{display:grid;grid-template-columns:64px minmax(0,1fr) 62px;align-items:center;gap:8px;font-size:11px}
+#cfsm-netdiag-home .nd-carrier{font-weight:700;color:var(--nd-blue);white-space:nowrap}
+#cfsm-netdiag-home .nd-carrier-ct{color:var(--nd-ok)}
+#cfsm-netdiag-home .nd-carrier-cm{color:var(--nd-warn)}
+#cfsm-netdiag-home .nd-route-path{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--nd-muted)}
+#cfsm-netdiag-home .nd-route-ms{font:600 11px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace;text-align:right;color:var(--nd-text)}
+#cfsm-netdiag-home .nd-card-foot{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;border-top:1px solid var(--nd-border);padding-top:8px;margin-top:1px}
+#cfsm-netdiag-home .nd-last{font-size:10px;color:var(--nd-muted);overflow-wrap:anywhere}
+#cfsm-netdiag-home .nd-detail{font-size:11px;color:var(--nd-blue);font-weight:650;text-decoration:none;white-space:nowrap}
+#cfsm-netdiag-home .nd-detail:hover{text-decoration:underline}
+#cfsm-netdiag-home .nd-empty,#cfsm-netdiag-home .cfsm-netdiag-boot{grid-column:1/-1;border:1px dashed var(--nd-border);border-radius:10px;padding:22px;text-align:center;color:var(--nd-muted);font-size:12px}
+#cfsm-netdiag-home .nd-note{margin:11px 0 0;font-size:10px;color:var(--nd-muted)}
+@media(min-width:1350px){#cfsm-netdiag-home .nd-grid{grid-template-columns:repeat(5,minmax(0,1fr))}}
+@media(max-width:1020px){#cfsm-netdiag-home .nd-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+#cfsm-netdiag-home[data-nd-theme="light"]{--nd-bg:#f5f8fc;--nd-card:#fff;--nd-border:#d7e3ef;--nd-text:#213049;--nd-muted:#687a93;--nd-blue:#17669b;--nd-ok:#146d58;--nd-warn:#8b5b16}
+@media(max-width:650px){#cfsm-netdiag-home{padding:0 10px;margin-top:10px}#cfsm-netdiag-home .nd-shell{padding:13px}#cfsm-netdiag-home .nd-top{gap:8px}#cfsm-netdiag-home .nd-title{font-size:18px}#cfsm-netdiag-home .nd-actions{width:100%;justify-content:flex-end}#cfsm-netdiag-home .nd-sync{margin-right:auto}#cfsm-netdiag-home .nd-grid{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;gap:10px;padding-bottom:6px;scrollbar-width:thin}#cfsm-netdiag-home .nd-card{flex:0 0 min(86%,335px);scroll-snap-align:start}#cfsm-netdiag-home .nd-subtitle::after{content:" · 左右滑动切换 VPS"}#cfsm-netdiag-home .nd-card{padding:12px}}

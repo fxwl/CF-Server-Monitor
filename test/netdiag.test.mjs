@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import fs from 'node:fs';
 import {publicIP,finite,tri,asns,selectedTargets,TARGETS,LABELS,ORDER,normalizeProxycheck,normalizeIpapi,validateReport,classifyRoute,routeChanges,limitedJson,secretEqual} from '../src/netdiag/core.js';
-import {ensureSchema,handleNetworkAPI,refreshQuality,maintain} from '../src/netdiag/service.js';
+import {ensureSchema,handleNetworkAPI,refreshQuality,maintain,summarizeHomeServer} from '../src/netdiag/service.js';
+import {getHomeQuality,getHomeRoutes,homeRouteSummary} from '../public/netdiag/home.js';
 
 const IP='94.24.39.45';
 const SECRET='test-only-not-a-production-credential-123456789';
@@ -57,4 +58,80 @@ test('diagnostic assets use selective Worker-first routing and a directory index
   assert.ok(config.includes('run_worker_first = ["/netdiag", "/netdiag/*", "/api/netdiag/*"]'));
   assert.ok(entry.includes("file==='index.html'?'/netdiag/'"));
   assert.ok(entry.includes("path==='/netdiag/index.html'"));
+});
+
+
+test('homepage summary obeys site visibility without unlocking admin overview',async()=>{
+  const env=await setup();
+  const publicDeps={...deps,loadSettings:async()=>({...SYS,is_public:'true'})};
+  const home=await handleNetworkAPI(request('/api/netdiag/home',{admin:false}),env,{},publicDeps);
+  assert.equal(home.status,200);
+  const body=await home.json();
+  assert.deepEqual(body.order,['cu','ct','cm']);
+  assert.equal(body.servers.length,2);
+  assert.equal(body.servers[0].name,'Demo');
+  assert.equal(body.servers[0].ip,IP);
+  assert.equal(body.servers[0].route,null);
+  assert.equal(body.servers[0].quality,null);
+  const adminOverview=await handleNetworkAPI(request('/api/netdiag/overview',{admin:false}),env,{},publicDeps);
+  assert.equal(adminOverview.status,401);
+  assert.ok(!JSON.stringify(body).includes(SECRET));
+  const privateHome=await handleNetworkAPI(request('/api/netdiag/home',{admin:false}),env,{},deps);
+  assert.equal(privateHome.status,401);
+});
+
+test('homepage respects hidden servers for public viewers',async()=>{
+  const env=await setup();
+  env.DB.sqlite.exec("ALTER TABLE servers ADD COLUMN is_hidden TEXT DEFAULT '0'");
+  env.DB.sqlite.prepare('UPDATE servers SET is_hidden=? WHERE id=?').run('1','server-2');
+  const publicDeps={...deps,loadSettings:async()=>({...SYS,is_public:'true'})};
+  const guest=await handleNetworkAPI(request('/api/netdiag/home',{admin:false}),env,{},publicDeps);
+  assert.deepEqual((await guest.json()).servers.map(x=>x.id),['server-1']);
+  const admin=await handleNetworkAPI(request('/api/netdiag/home'),env,{},publicDeps);
+  assert.deepEqual((await admin.json()).servers.map(x=>x.id),['server-1','server-2']);
+});
+
+test('homepage includes carrier summaries but never reveals raw network trace hops',async()=>{
+  const env=await setup();
+  const p=providerMock();
+  await refreshQuality(env,'server-1',p.fetcher);
+  const reportBody=report();
+  const accepted=await handleNetworkAPI(request('/api/netdiag/report',{agent:true,body:reportBody}),env,{},deps);
+  assert.equal(accepted.status,200);
+  const home=await handleNetworkAPI(request('/api/netdiag/home'),env,{},deps);
+  assert.equal(home.status,200);
+  const body=await home.json();
+  const server=body.servers[0];
+  assert.equal(server.quality.providers.length,2);
+  assert.equal(server.quality.providers[0].risk,0);
+  assert.equal(server.quality.providers[0].flags.proxy,false);
+  assert.equal(server.route.routes.length,3);
+  assert.deepEqual(server.route.routes.map(x=>x.key),['cu','ct','cm']);
+  assert.equal(server.route.routes[0].median_ms,39);
+  assert.ok(server.route.routes[0].lines[0].includes('9929'));
+  assert.ok(!JSON.stringify(server).includes('218.105.2.1'));
+  assert.ok(!JSON.stringify(server).includes('hops'));
+  assert.equal(env.DB.sqlite.prepare('SELECT count(*) n FROM metrics_history').get().n,2);
+});
+
+test('homepage marks changed IP or old observations stale rather than treating them as current',()=>{
+  const report={ip:IP,created_at:100,status:'complete',routes:[{key:'cu',status:'complete',reached:true,line:{labels:['CN2']},tcp:{median_ms:40}}]};
+  const summary=summarizeHomeServer({id:'abc',name:'Demo',region:'DE'}, {ip:'62.84.164.140',seen_at:300}, null, report,1000);
+  assert.equal(summary.route.stale,true);
+  assert.equal(summary.route.routes[0].lines[0],'CN2');
+  assert.equal(summary.route.routes[1].status,'pending');
+  assert.deepEqual(Object.keys(summary.route.routes[0]).sort(),['change','confidence','key','lines','median_ms','reached','status'].sort());
+});
+
+test('homepage presentation keeps unknown flags distinct from false and preserves operator ordering',()=>{
+  const data=getHomeQuality({providers:[
+    {provider:'A',status:'ok',asn:'AS9929',risk:0,flags:{proxy:false,vpn:null,hosting:false}},
+    {provider:'B',status:'ok',risk:null,flags:{proxy:true,hosting:null}}
+  ]});
+  assert.equal(data.risk.risk,0);
+  assert.equal(data.flags.proxy.value,'mixed');
+  assert.equal(data.flags.vpn.value,null);
+  assert.equal(data.flags.hosting.value,false);
+  assert.deepEqual(getHomeRoutes({routes:[{key:'cm',status:'complete'},{key:'cu',status:'partial'}]}).map(x=>x.key),['cu','ct','cm']);
+  assert.equal(homeRouteSummary({stale:true,status:'complete'}),'历史结果');
 });
