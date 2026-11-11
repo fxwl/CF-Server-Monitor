@@ -37,7 +37,7 @@ for ARCH in amd64 arm64; do
   echo "Building Linux/$ARCH ($VERSION)"
   (
     cd "$WORK/src"
-    CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" GOTOOLCHAIN=auto \
+    CGO_ENABLED=0 GOOS=linux GOARCH="$ARCH" GOTOOLCHAIN=go1.27.3 \
       go build -trimpath -ldflags "-s -w -X main.version=$VERSION" \
       -o "$OUT/cf-probe-linux-$ARCH" ./cmd/cf-probe
   )

@@ -1,0 +1,16 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
+const lock=JSON.parse(fs.readFileSync('RELEASE_LOCK.json','utf8'));
+const pkg=JSON.parse(fs.readFileSync('package.json','utf8'));
+assert.equal(pkg.version,'2.8.7');assert.equal(lock.upstream_version,pkg.version);
+const config=fs.readFileSync('wrangler.toml','utf8');
+assert.match(config,/name = "cf-server-monitor"/);assert.match(config,/main = "src\/network-entry.js"/);
+assert.ok(config.includes('064088a9-cc83-42b8-973e-8494bcaf0b71'));
+assert.ok(!config.includes('API_SECRET ='));
+const sums=JSON.parse(fs.readFileSync('public/netdiag/stable/manifest.json','utf8'));
+for(const [file,key] of [['collector.py','collector_sha256'],['install.sh','install_sha256']])assert.equal(crypto.createHash('sha256').update(fs.readFileSync('public/netdiag/stable/'+file)).digest('hex'),sums[key]);
+for(const arch of ['amd64','arm64'])assert.ok(fs.statSync('public/agent/cf-probe-linux-'+arch).size>1000000);
+assert.ok(!/^\s+schedule:/m.test(fs.readFileSync('.github/workflows/sync.yml','utf8')));
+assert.ok(fs.readFileSync('public/netdiag/stable/install.sh','utf8').includes(sums.collector_sha256));
+console.log('Release lock, agent binaries, checksums, and disabled automatic upstream sync verified.');

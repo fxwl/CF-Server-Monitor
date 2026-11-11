@@ -1,0 +1,13 @@
+{
+  "version": "1.2.0",
+  "release": "2.8.7-fuzhou.20261111.1",
+  "auto_update": false,
+  "collector_sha256": "3709646046a48461253429f169333c626b0c4e69ac704584c024180f89ae7279",
+  "install_sha256": "a295453b6cc4a7150ed7b13602d44390098ba4ec46ed8491ddf2fc99cafc2652",
+  "target_order": [
+    "cu",
+    "ct",
+    "cm"
+  ],
+  "mode": "icmp-and-unprivileged-udp-traceroute"
+}

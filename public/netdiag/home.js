@@ -1,196 +1,128 @@
-// In-card network intelligence for the pinned AnotherLuminaPlus React theme.
-// No new page-level panel. This module intentionally never modifies React state.
+// Frozen AnotherLuminaPlus adapter: compact cards; full reports in native server detail.
 const ORDER=['cu','ct','cm'];
 const NAMES={cu:'福州联通',ct:'福州电信',cm:'福州移动'};
-const ROUTE_STATUS={complete:'已到达',partial:'部分可见',timeout:'探测超时',dns_error:'DNS 失败',permission_denied:'权限不足',tool_missing:'工具缺失',error:'探测失败'};
-const AS_NAMES={
-  9929:'联通精品网 9929',4837:'联通 169 骨干',10099:'联通国际 CUG',4809:'电信 CN2',
-  4134:'电信 163 骨干',58453:'移动国际 CMI',58807:'移动国际 CMI',9808:'移动 CMNET',
-  174:'Cogent 国际骨干',1299:'Arelion 国际骨干',2914:'NTT 国际骨干',
-  3257:'GTT 国际骨干',3356:'Lumen 国际骨干',6453:'TATA 国际骨干'
-};
-export function getHomeQuality(quality){
-  const available=(quality?.providers||[]).filter(p=>p?.status==='ok');
-  const info=available.find(p=>p.asn||p.operator)||available[0]||null;
-  const risk=available.find(p=>typeof p.risk==='number'&&Number.isFinite(p.risk))||null;
-  const knownFlag=key=>{
-    const votes=available.map(p=>({source:p.provider,value:p.flags?.[key]})).filter(v=>typeof v.value==='boolean');
-    if(!votes.length)return {value:null,source:null};
-    const values=new Set(votes.map(v=>v.value));
-    return {value:values.size>1?'mixed':votes[0].value,source:votes.map(v=>v.source).join('、')};
-  };
-  return {available,info,risk,flags:{proxy:knownFlag('proxy'),vpn:knownFlag('vpn'),hosting:knownFlag('hosting'),tor:knownFlag('tor')},
-    count:available.length};
+const A={9929:'联通精品网 9929',4837:'联通 169 骨干',10099:'联通国际 CUG',4809:'电信 CN2',4134:'电信 163 骨干',58453:'移动国际 CMI',58807:'移动国际 CMI',9808:'移动 CMNET',174:'Cogent',1299:'Arelion',2914:'NTT',3257:'GTT',3356:'Lumen',6453:'TATA'};
+const T={unknown:'未知',pending:'待接入',yes:'是',no:'否',na:'未返回',unavailable:'不可用',quality:'IP 质量',basic:'基础信息',type:'IP 类型',risk:'风险指标',factor:'风险因子',route:'回程路由',history:'历史记录',detail:'IP / 路由详情',refresh:'刷新展示',update:'更新 IP 信息',source:'数据来源',operator:'运营商',country:'国家 / 地区',city:'城市',proxy:'代理',hosting:'机房',abuser:'滥用标记',time:'检测时间',current:'最新结果',check:'查看',noData:'暂无检测记录',loading:'正在读取诊断数据…',failure:'读取失败',stale:'历史结果',conflict:'来源不一致',viewReport:'完整报告',allHops:'完整跳点',masked:'内网跳点（已隐藏）',oldTarget:'旧目标记录，不参与现在的线路判断',login:'请先登录监控后台',noFlags:'基础数据源不提供风险判断',geoHint:'IP 地理信息仅供参考，不代表路由器的确切物理位置',caveat:'不同数据源的评分不能直接平均；未知不等于安全，机房不等于恶意',traceHint:'UDP traceroute 与 ICMP 是不同测试；* 只表示本跳未响应，不能直接当作终端丢包',noExtra:'未启用：流媒体 / AI 解锁、邮件、批量 DNSBL 测试。未测试不显示为通过。',extra:'其他检测范围',staleWarning:'IP、目标或时间已变更，以下为历史观测，不应当作当前状态'};
+const STATUS={complete:'已完成',partial:'部分可见',timeout:'探测超时',dns_error:'DNS 失败',tool_missing:'缺少工具',permission_denied:'权限不足',unavailable:T.unavailable,error:'检测失败',ok:'正常'};
+export function getHomeQuality(q){const available=(q?.providers||[]).filter(p=>p.status==='ok');const flag=k=>{const v=available.filter(p=>typeof p.flags?.[k]==='boolean');return{value:!v.length?null:new Set(v.map(p=>p.flags[k])).size>1?'mixed':v[0].flags[k],source:v.map(p=>p.provider).join(', ')};};return{available,availableCount:available.length,info:available.find(p=>p.asn||p.operator)||null,risk:available.find(p=>typeof p.risk==='number')||null,flags:{proxy:flag('proxy'),vpn:flag('vpn'),hosting:flag('hosting'),tor:flag('tor')}};}
+export const getHomeRoutes=r=>ORDER.map(key=>({key,label:NAMES[key],data:r?.routes?.find(x=>x.key===key)||null}));
+export const homeRouteSummary=r=>!r?T.pending:r.stale?T.stale:STATUS[r.status]||T.unknown;
+export const readableAsn=n=>A[Number(n)]||'AS'+n;
+export function readableLine(r){const line=r?.line||r;if(!r)return T.pending;const seq=(line.segments||[]).filter(s=>s.known).map(s=>readableAsn(s.asn));if(seq.length)return seq.slice(0,5).join(' → ');const labels=line.labels||line.lines||[];return labels.length?labels.map(s=>{const m=s.match(/AS\s?(\d+)/i);return m&&A[+m[1]]?A[+m[1]]:s;}).slice(0,5).join(' → '):T.unknown;}
+export function routeEndpointStatus(r){return r?.reached?'目标已响应':'目标未确认到达';}
+export function parseRoute(path,hash=''){const source=hash.startsWith('#/')?hash.slice(1):path;const m=source.match(/^\/(?:server|instance)\/([^/?#]+)\/?(?:[?#].*)?$/);try{return m?decodeURIComponent(m[1]):null;}catch{return null;}}
+const str=x=>x===null||x===undefined||x===''?T.unknown:String(x);
+const ms=x=>typeof x==='number'&&Number.isFinite(x)?x.toFixed(1)+' ms':'—';
+const when=x=>typeof x==='number'&&Number.isFinite(x)&&x>0?new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',dateStyle:'short',timeStyle:'medium',hour12:false}).format(new Date(x)):T.noData;
+const bool=x=>x===true?T.yes:x===false?T.no:T.na;
+function el(tag,cls='',...kids){const n=document.createElement(tag);if(cls)n.className=cls;for(const k of kids.flat())if(k!==null&&k!==undefined)n.append(k instanceof Node?k:document.createTextNode(String(k)));return n;}
+function a(href,label,cls=''){const n=el('a',cls,label);n.href=href;return n;}
+function button(label,handler){const n=el('button','cfnd-btn',label);n.type='button';n.addEventListener('click',handler);return n;}
+function table(headers,rows){const n=el('table','cfnd-table',el('thead','',el('tr','',...headers.map(x=>el('th','',x)))));n.append(el('tbody','',...rows.map(row=>el('tr','',...row.map(x=>el('td','',x))))));return el('div','cfnd-table-scroll',n);}
+function section(num,title,...content){return el('section','cfnd-section',el('h3','cfnd-section-title',el('span','cfnd-num',num),title),...content);}
+function flagBadge(name,f){const b=el('span','cfnd-badge',name+': '+(f.value==='mixed'?T.conflict:bool(f.value)));if(f.source)b.title=f.source;if(f.value==='mixed'||f.value===true)b.classList.add('cfnd-warn');return b;}
+function summaryCard(s){
+  const q=getHomeQuality(s.quality),n=el('section','cfnd-inline card-metric-section');n.dataset.cfndServer=s.id;
+  const top=el('div','cfnd-summary-top',el('span','cfnd-asn',[q.info?.asn,q.info?.operator].filter(Boolean).join(' · ')||'ASN: '+T.unknown));
+  n.append(top,el('div','cfnd-badges',q.risk?el('span','cfnd-badge',q.risk.provider+' '+T.risk+' '+q.risk.risk+'/100'):el('span','cfnd-badge',T.risk+': '+T.unknown),flagBadge(T.proxy,q.flags.proxy),flagBadge(T.hosting,q.flags.hosting)));
+  const routes=el('div','cfnd-summary-routes');for(const {label,data} of getHomeRoutes(s.route)){const content=data?.target_matches===false?T.oldTarget:readableLine(data);const row=el('div','cfnd-summary-route',el('span','cfnd-carrier',label),el('span','cfnd-path',content));row.title=content;routes.append(row);}
+  n.append(routes,a('/server/'+encodeURIComponent(s.id)+'#network-report',T.detail+' ›','cfnd-detail-link'));return n;
 }
-export function getHomeRoutes(route){return ORDER.map(key=>({key,label:NAMES[key],data:route?.routes?.find(r=>r.key===key)||null}));}
-export function homeRouteSummary(route){return !route?'待接入':route.stale?'历史结果':ROUTE_STATUS[route.status]||'等待数据';}
-export function readableAsn(asn){const n=Number(asn);return AS_NAMES[n]||('AS'+n);}
-export function readableLine(route){
-  if(!route)return '待本机诊断组件上报';
-  const asns=(route.segments||[]).filter(x=>x.known).map(x=>x.asn);
-  if(asns.length)return [...new Set(asns)].slice(0,4).map(readableAsn).join(' → ');
-  const labels=(route.lines||[]).map(x=>{
-    const match=String(x).match(/AS\s?(\d{2,10})/i);
-    return match&&AS_NAMES[Number(match[1])]?AS_NAMES[Number(match[1])]:String(x);
-  });
-  return labels.length?[...new Set(labels)].slice(0,4).join(' → '):'暂未识别骨干线路';
+function sourceMatrix(q){
+  const providers=q?.providers||[];
+  if(!providers.length)return el('p','cfnd-muted',T.noData);
+  const fields=[['ASN',p=>p.asn],[T.operator,p=>p.operator],[T.country,p=>[p.country,p.country_code,p.region].filter(Boolean).join(' / ')],[T.city,p=>p.city],[T.type,p=>p.network_type],[T.time,p=>when(p.checked_at)]];
+  return table([T.source,...providers.map(p=>p.provider)],fields.map(([label,value])=>[label,...providers.map(p=>p.status==='ok'?str(value(p)):T.unavailable)]).concat([[T.source+' status',...providers.map(p=>p.status==='ok'?(p.coverage==='basic'?T.noFlags:'OK'):p.error||T.unavailable)]]));
 }
-export function routeEndpointStatus(route){
-  if(!route)return '待检测';
-  if(route.status==='dns_error')return '目标解析失败';
-  if(route.status==='tool_missing')return '缺少 traceroute';
-  if(route.status==='permission_denied')return '路由工具权限不足';
-  if(route.status==='timeout')return '路由探测超时';
-  return route.reached?'目标已响应':'目标未确认到达';
+function scores(q){return el('div','cfnd-score-grid',...(q?.providers||[]).map(p=>{const n=el('article','cfnd-score-card',el('strong','',p.provider));const v=p.status==='ok'&&typeof p.risk==='number'?p.risk:null;n.append(el('div','cfnd-score',v===null?'—':v,el('small','',v===null?'': '/100')));if(v!==null){const progress=el('progress','');progress.max=100;progress.value=v;progress.setAttribute('aria-label',p.provider+' '+T.risk);n.append(progress);}n.append(el('span','cfnd-muted',p.status!=='ok'?p.error||T.unavailable:p.coverage==='basic'?T.noFlags:T.risk));if(p.network_abuse_score)n.append(el('p','cfnd-muted','网段滥用比例: '+p.network_abuse_score));if(typeof p.confidence==='number')n.append(el('p','cfnd-muted','Confidence: '+p.confidence));n.append(el('p','cfnd-muted',when(p.checked_at)));return n;}));}
+function factors(q){const ps=q?.providers||[];const defs=[['proxy',T.proxy],['vpn','VPN'],['tor','Tor'],['hosting',T.hosting],['abuser',T.abuser],['anonymous','Anonymous'],['compromised','Compromised'],['scraper','Scraper'],['crawler','Crawler'],['mobile','Mobile'],['bogon','Bogon']];return table([T.factor,...ps.map(p=>p.provider)],defs.map(([key,label])=>[label,...ps.map(p=>p.status==='ok'?bool(p.flags?.[key]):T.unavailable)]));}
+function routeReport(target,r,live){
+  const root=el('article','cfnd-route-report',el('div','cfnd-route-title',el('h4','',target.label),el('span','cfnd-badge',r?STATUS[r.status]||r.status:T.pending)));
+  root.append(el('p','cfnd-endpoint','VPS → '+target.host+' · ICMP / UDP traceroute'));
+  if(live)root.append(el('p','cfnd-muted','主探针 ICMP: '+ms(live.value)+' · Loss '+(typeof live.loss==='number'?live.loss+'%':'—')));
+  if(!r){root.append(el('p','cfnd-muted',T.pending));return root;}
+  if(r.target_matches===false)root.append(el('p','cfnd-banner',T.oldTarget+' ('+r.host+')'));
+  root.append(el('p','cfnd-route-chain',readableLine(r)));
+  const p=r.icmp,t=r.tcp;const rows=p?[[ 'ICMP',p.sent+' / '+p.received,ms(p.avg_ms),ms(p.min_ms),ms(p.max_ms),ms(p.mdev_ms),p.loss_pct===null?'—':p.loss_pct+'%']]:t?[[ 'TCP',str(t.attempts)+' / '+str(t.successes),ms(t.median_ms),ms(t.min_ms),ms(t.max_ms),ms(t.jitter_ms),'—']]:[];
+  if(rows.length)root.append(table(['方式','Sent / OK','AVG / P50','MIN','MAX','MDEV / Variation','ICMP Loss'],rows));
+  root.append(el('p','cfnd-muted',routeEndpointStatus(r)+' · '+(r.method||'UDP traceroute')));
+  const hops=(r.hops||[]).map(h=>[h.ttl,h.private&&!h.ip?T.masked:h.ip||'*',(h.asns||[]).map(x=>'AS'+x).join(', ')||T.unknown,(h.asns||[]).map(readableAsn).join(' / ')||h.geo?.isp||T.unknown,[h.geo?.country,h.geo?.region,h.geo?.city].filter(Boolean).join(' / ')||T.unknown,(h.rtts_ms||[]).map(ms).join(' / ')||'*',h.annotation||'']);
+  root.append(table(['TTL','IP','ASN',T.operator,T.country,'RTT','Note'],hops),el('p','cfnd-muted',T.geoHint));return root;
 }
-const fmtTime=value=>{
-  if(!value||!Number.isFinite(Number(value)))return '尚无记录';
-  return new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(Number(value)));
-};
-const fmtMs=value=>typeof value==='number'&&Number.isFinite(value)?value.toFixed(0)+'ms':'—';
-function node(tag,cls='',...children){
-  const el=document.createElement(tag);if(cls)el.className=cls;
-  for(const x of children){if(x===null||x===undefined)continue;el.append(x instanceof Node?x:document.createTextNode(String(x)));}
-  return el;
+export function renderReport(root,data,actions={}){
+  const s=data.server,q=s.quality,r=s.route;root.replaceChildren();root.className='cfnd-report';root.id='network-report';
+  const heading=el('header','cfnd-report-heading',el('div','',el('h2','',T.viewReport),el('p','cfnd-muted',(s.name||'')+' · '+str(s.ip)+' · '+data.release)));
+  const controls=el('div','cfnd-controls');if(actions.refresh)controls.append(button(T.refresh,actions.refresh));if(actions.update&&data.can_refresh)controls.append(button(T.update,actions.update));if(actions.install&&data.can_refresh)controls.append(button('复制组件接入命令',actions.install));heading.append(controls);root.append(heading);
+  const overview=[[ 'IPv4',str(s.ip_v4)],[ 'IPv6',str(s.ip_v6)],['Agent',when(s.ip_seen_at)],[T.quality,when(q?.created_at)],[T.route,when(r?.created_at)],['Version',str(r?.version)]];
+  const cells=overview.map(([k,v])=>el('div','cfnd-kv',el('small','',k),el('strong','',v)));
+  root.append(section('01',T.basic,el('div','cfnd-kv-grid',...cells)));
+  if(q?.stale||r?.stale||s.viewing_history)root.append(el('p','cfnd-banner',T.staleWarning));
+  root.append(section('02',T.type+' / '+T.source,sourceMatrix(q)));
+  root.append(section('03',T.risk,scores(q),el('p','cfnd-muted',T.caveat)));
+  root.append(section('04',T.factor,factors(q)));
+  root.append(section('05',T.route+' / '+T.allHops,...(data.targets||[]).map(t=>routeReport(t,r?.routes?.find(x=>x.key===t.key),s.live?.rows?.find(x=>x.key===t.key))),el('p','cfnd-muted',T.traceHint)));
+  const history=(data.history||[]).map(h=>[when(h.created_at),h.kind==='quality'?T.quality:T.route,str(h.ip),STATUS[h.status]||h.status,actions.select?button(T.check,()=>actions.select(h.id)):T.unknown]);
+  root.append(section('06',T.history,history.length?table([T.time,'Type','IP','Status',T.check],history):el('p','cfnd-muted',T.noData)));
+  root.append(section('07',T.extra,el('p','cfnd-muted',T.noExtra)));
 }
-function span(cls,text){return node('span',cls,text);}
-function badge(name,flag){
-  const status=flag?.value===true?'是':flag?.value===false?'否':flag?.value==='mixed'?'来源冲突':'未知';
-  const n=span('cfnd-badge '+(flag?.value==='mixed'?'cfnd-dispute':flag?.value===true?'cfnd-flagged':''),name+':'+status);
-  if(flag?.source)n.title='检测数据源：'+flag.source;
-  return n;
+async function request(path,body){const headers={Accept:'application/json'};try{const token=localStorage.getItem('jwt_token');if(token)headers.Authorization='Bearer '+token;}catch{}if(body){headers['Content-Type']='application/json';headers['X-CFSM-Netdiag']='1';}const c=new AbortController(),timer=setTimeout(()=>c.abort(),18000);try{const r=await fetch('/api/netdiag/'+path,{method:body?'POST':'GET',headers,credentials:'same-origin',cache:'no-store',redirect:'error',signal:c.signal,body:body?JSON.stringify(body):undefined});const data=await r.json();if(!r.ok)throw Error(r.status===401?T.login:data.error||'HTTP '+r.status);return data;}finally{clearTimeout(timer);}}
+function setTitleIp(title,server){
+  if(!title||!server.ip)return;
+  let ip=title.parentElement?.querySelector(':scope > .cfnd-title-ip');
+  if(!ip){ip=el('span','cfnd-title-ip');title.after(ip);if(/^H[1-6]$/.test(title.tagName))title.classList.add('cfnd-native-title');else title.parentElement?.classList.add('cfnd-title-row');}
+  if(ip.textContent!==server.ip)ip.textContent=server.ip;ip.title=server.ip;ip.dataset.cfndServer=server.id;
 }
-function qualityBlock(server,compact){
-  const q=getHomeQuality(server.quality),wrap=node('div','cfnd-quality');
-  const ip=span('cfnd-ip',server.ip||'公网 IP 待上报');
-  wrap.append(node('div','cfnd-quality-head',span('cfnd-title','IP 质量'),ip));
-  const info=q.info;
-  const asn=[info?.asn,info?.operator].filter(Boolean).join(' · ');
-  wrap.append(span('cfnd-info',asn||'ASN / 运营商：等待数据源'));
-  if(!compact){
-    const region=[info?.city,info?.country||info?.country_code].filter(Boolean).join(' · ');
-    if(region)wrap.append(span('cfnd-info',region));
+export function startAdapter(){
+  if(location.pathname.startsWith('/netdiag'))return;
+  let summaries=new Map(),queued=false,loading=false,detailLoading=false,detailKey='',routeKey='',report=null,last=0,homeGeneration=0,detailError='',retryAt=0;
+  async function refreshHome(){if(loading||document.hidden)return;loading=true;try{const data=await request('home');summaries=new Map((data.servers||[]).map(s=>[s.id,s]));homeGeneration++;last=Date.now();schedule();}catch(e){console.info('[CFSM] diagnostic summaries unavailable');}finally{loading=false;}}
+  async function refreshDetail(id,run=''){
+    const key=id+':'+run;if(detailLoading||key===detailKey||Date.now()<retryAt)return;detailLoading=true;detailError='';
+    try{const data=await request('detail?id='+encodeURIComponent(id)+(run?'&run='+encodeURIComponent(run):''));if(parseRoute(location.pathname,location.hash)!==id)return;report=data;detailKey=key;schedule();}catch(e){detailKey='';detailError=e.message;retryAt=Date.now()+30000;}finally{detailLoading=false;schedule();}
   }
-  const line=node('div','cfnd-quality-flags');
-  if(q.risk){
-    const risk=span('cfnd-badge cfnd-risk',q.risk.provider+' 风险 '+q.risk.risk+'/100');
-    risk.title='仅表示 '+q.risk.provider+' 自有算法；不能用于推断账号被封概率';
-    line.append(risk);
-  }else{
-    const unknown=span('cfnd-badge','风险评分：未知');
-    unknown.title='现有风险检测源不可用，不等于低风险或安全';
-    line.append(unknown);
-  }
-  line.append(badge('代理',q.flags.proxy),badge('VPN',q.flags.vpn),badge('机房',q.flags.hosting));
-  wrap.append(line);
-  if(server.quality?.stale)wrap.append(span('cfnd-warning','IP 已变化或记录已过期'));
-  return wrap;
-}
-function hopRow(h){
-  const info=(h.asns||[]).map(readableAsn).join(' / ')||'未知运营商';
-  const parts=[h.geo?.city,h.geo?.region,h.geo?.country].filter(Boolean);
-  const place=[...new Set(parts)].join(' · ');
-  const line=node('div','cfnd-hop');
-  line.append(span('cfnd-hop-ttl',String(h.ttl).padStart(2,'0')),span('cfnd-hop-ip',h.ip||'*'),
-    span('cfnd-hop-name',info));
-  if(place)line.append(span('cfnd-hop-place',place));
-  return line;
-}
-function carrierBlock(key,label,r,full){
-  const row=node('div','cfnd-route-row');
-  const top=node('div','cfnd-route-top');
-  top.append(span('cfnd-carrier cfnd-'+key,label),span('cfnd-rtt','TCP '+fmtMs(r?.median_ms)));
-  row.append(top,span('cfnd-chain',readableLine(r)));
-  if(!r){row.append(span('cfnd-muted','等待本机检测'));return row;}
-  const detail=node('details','cfnd-route-detail');
-  const success=typeof r.success_pct==='number'?r.success_pct+'%':'未统计';
-  const summary=node('summary','',span('cfnd-detail-label','连接成功率 '+success+' · '+routeEndpointStatus(r)),span('cfnd-detail-action','查看跳点'));
-  detail.append(summary);
-  const geoNote=node('div','cfnd-muted','方向：VPS → '+label+'。跳点位置来自 IP 地理库，可能偏差；* 代表中间路由器未响应，不等于终端丢包。');
-  detail.append(geoNote);
-  if(Array.isArray(r.visible_hops)&&r.visible_hops.length){
-    const hops=node('div','cfnd-hop-list');
-    for(const h of r.visible_hops)hops.append(hopRow(h));
-    detail.append(hops);
-  }else detail.append(span('cfnd-muted','没有可用的公网跳点；暂不能判断实际路由。'));
-  row.append(detail);
-  return row;
-}
-function buildFull(server){
-  const root=node('section','cfnd-inline card-metric-section');root.dataset.cfndServer=server.id;
-  root.setAttribute('aria-label','IP 质量与福州三网回程');
-  root.append(qualityBlock(server,false));
-  const heading=node('div','cfnd-heading',span('cfnd-title','福州三网回程'));
-  heading.append(span('cfnd-sub',server.route?.stale?'历史数据':'联通 · 电信 · 移动'));
-  root.append(heading);
-  const routes=node('div','cfnd-routes');
-  for(const {key,label,data} of getHomeRoutes(server.route))routes.append(carrierBlock(key,label,data,true));
-  root.append(routes);
-  root.append(span('cfnd-source-note','仅凭已响应跳点判断线路 · 不测试下载速度 · 检测 '+fmtTime(server.route?.checked_at)));
-  return root;
-}
-function buildCompact(server){
-  const root=node('section','cfnd-inline cfnd-compact');root.dataset.cfndServer=server.id;
-  root.setAttribute('aria-label','IP 质量与福州三网回程');
-  root.append(qualityBlock(server,true));
-  const routes=node('div','cfnd-routes');
-  for(const {key,label,data} of getHomeRoutes(server.route))routes.append(carrierBlock(key,label,data,false));
-  root.append(routes);return root;
-}
-function buildList(server){
-  const line=span('cfnd-list-summary','联通 '+fmtMs(server.route?.routes?.find(r=>r.key==='cu')?.median_ms)+
-    ' / 电信 '+fmtMs(server.route?.routes?.find(r=>r.key==='ct')?.median_ms)+
-    ' / 移动 '+fmtMs(server.route?.routes?.find(r=>r.key==='cm')?.median_ms));
-  line.dataset.cfndServer=server.id;
-  const q=getHomeQuality(server.quality);
-  line.title=[q.info?.asn,q.info?.operator, ...getHomeRoutes(server.route).map(({label,data})=>label+': '+readableLine(data))].filter(Boolean).join('\n');
-  return line;
-}
-function inHomepage(){return location.pathname==='/'&&(!location.hash||/^#\/?$/.test(location.hash));}
-function init(){
-  let lookup=new Map(),scheduled=false,pending=false,lastRefresh=0;
-  const sync=()=>{
-    if(!inHomepage())return;
+  function sync(){
+    const id=parseRoute(location.pathname,location.hash),newKey=id||'home';
+    if(routeKey!==newKey){routeKey=newKey;report=null;detailKey='';detailError='';retryAt=0;document.querySelectorAll('.cfnd-report').forEach(n=>n.remove());}
+    if(id){
+      const s=summaries.get(id)||report?.server;const title=document.querySelector('main h1,main h2,#root h1');if(s&&title)setTitleIp(title,s);
+      if(!report){if(detailError){let error=document.querySelector('.cfnd-report');const parent=document.querySelector('main')||document.querySelector('#root');if(parent&&!error){error=el('section','cfnd-report',el('p','cfnd-banner',detailError),button(T.refresh,()=>{retryAt=0;detailError='';void refreshDetail(id);}));parent.append(error);}}void refreshDetail(id);return;}
+      let host=document.querySelector('.cfnd-report');const parent=document.querySelector('main')||document.querySelector('#root');if(!parent)return;
+      if(!host){host=el('section','cfnd-report');parent.append(host);}
+      if(host.dataset.record===detailKey)return;
+      renderReport(host,report,{refresh:()=>{detailKey='';retryAt=0;void refreshDetail(id);},install:()=>copyInstall(host),select:run=>{detailKey='';void refreshDetail(id,run);},update:async()=>{try{await request('refresh',{server_id:id});detailKey='';await refreshDetail(id);}catch(e){alert(e.message);}}});host.dataset.record=detailKey;
+      return;
+    }
     const cards=document.querySelectorAll('article.server-card[id^="node-card-"],article.compact-node-card[id^="node-card-"],a.node-list-row[id^="node-card-"]');
     for(const card of cards){
-      const id=card.id.slice('node-card-'.length),server=lookup.get(id);
-      if(!server)continue;
-      const list=card.matches('a.node-list-row'),compact=card.matches('.compact-node-card');
-      const parent=list?card.querySelector('.node-list-node-text'):compact?card:card.querySelector('.server-card-stack');
-      if(!parent)continue;
-      if(parent.querySelector('.cfnd-inline,.cfnd-list-summary'))continue;
-      parent.append(list?buildList(server):compact?buildCompact(server):buildFull(server));
+      const sid=card.id.slice('node-card-'.length),s=summaries.get(sid);if(!s)continue;
+      const title=card.querySelector('.server-card-title-link,.compact-node-title,.mini-node-title,.node-list-name')||card.querySelector('a[href^="/server/"]');if(title)setTitleIp(title,s);
+      const isList=card.matches('a.node-list-row'),parent=isList?card.querySelector('.node-list-node-text'):card.matches('.compact-node-card')?card:card.querySelector('.server-card-stack');if(!parent)continue;
+      let current=parent.querySelector(':scope > .cfnd-inline,:scope > .cfnd-list-summary');if(current?.dataset.generation===String(homeGeneration))continue;
+      const next=isList?el('span','cfnd-list-summary',[getHomeQuality(s.quality).info?.asn,readableLine(s.route?.routes?.find(r=>r.key==='cu'))].filter(Boolean).join(' · ')):summaryCard(s);
+      next.dataset.generation=String(homeGeneration);if(current)current.replaceWith(next);else parent.append(next);
     }
-  };
-  const schedule=()=>{
-    if(scheduled)return;
-    scheduled=true;
-    requestAnimationFrame(()=>{scheduled=false;sync();});
-  };
-  new MutationObserver(schedule).observe(document.documentElement,{childList:true,subtree:true});
-  async function load(){
-    if(pending||document.visibilityState==='hidden'||!inHomepage())return;
-    pending=true;
-    const controller=new AbortController(),kill=setTimeout(()=>controller.abort(),12000);
-    try {
-      const headers={Accept:'application/json'};
-      try{const token=localStorage.getItem('jwt_token');if(token)headers.Authorization='Bearer '+token;}catch{}
-      const r=await fetch('/api/netdiag/home',{headers,credentials:'same-origin',cache:'no-store',signal:controller.signal,redirect:'error'});
-      if(!r.ok)throw new Error('HTTP '+r.status);
-      const data=await r.json();
-      if(!Array.isArray(data.servers))throw new Error('Invalid server summary');
-      lookup=new Map(data.servers.filter(s=>s&&typeof s.id==='string').map(s=>[s.id,s]));
-      document.querySelectorAll('.cfnd-inline,.cfnd-list-summary').forEach(el=>el.remove());
-      lastRefresh=Date.now();
-      schedule();
-    }catch(e){
-      // Original dashboard keeps working if diagnostic APIs fail.
-      console.info('[CFSM Netdiag] Homepage diagnostic data unavailable:',e?.message||'unknown');
-    }finally{clearTimeout(kill);pending=false;}
   }
-  void load();
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-lastRefresh>240000)void load();});
-  window.addEventListener('popstate',()=>{schedule();if(inHomepage()&&Date.now()-lastRefresh>240000)void load();});
-  setInterval(()=>{if(!document.hidden)void load();},5*60*1000);
+  function schedule(){if(queued)return;queued=true;setTimeout(()=>{queued=false;if(!document.hidden)sync();},150);}
+  new MutationObserver(records=>{if(records.some(r=>!r.target.closest?.('.cfnd-inline,.cfnd-report,.cfnd-title-ip,.cfnd-list-summary')))schedule();}).observe(document.documentElement,{childList:true,subtree:true});
+  window.addEventListener('popstate',schedule);window.addEventListener('hashchange',schedule);document.addEventListener('visibilitychange',()=>{if(!document.hidden){schedule();if(Date.now()-last>240000)void refreshHome();}});
+  setInterval(()=>{if(!document.hidden){void refreshHome();if(report){detailKey='';void refreshDetail(report.server.id);}}},300000);
+  void refreshHome();schedule();
 }
-if(typeof document!=='undefined')init();
+async function copyInstall(root){
+  const version='1.2.0',base='/netdiag/releases/'+version+'/';
+  try{
+    const response=await fetch(base+'manifest.json',{cache:'no-store',credentials:'same-origin'});
+    if(!response.ok)throw Error('manifest_unavailable');const manifest=await response.json();
+    if(manifest.version!==version||!/^[0-9a-f]{64}$/.test(manifest.install_sha256))throw Error('invalid_manifest');
+    const command="bash <<'CFSM_STABLE'\nset -euo pipefail\nf=$(mktemp)\ntrap 'rm -f \"$f\"' EXIT\ncurl -q -4fsSL --proto '=https' --proto-redir '=https' --connect-timeout 10 --max-time 90 https://monitor.nnot.de"+base+"install.sh -o \"$f\"\nprintf '%s  %s\\n' '"+manifest.install_sha256+"' \"$f\" | sha256sum -c -\nbash \"$f\" apply\nCFSM_STABLE";
+    let box=root.querySelector('.cfnd-install-command');if(!box){box=el('pre','cfnd-install-command');root.append(box);}box.textContent=command;
+    try{await navigator.clipboard.writeText(command);}catch{}
+  }catch(e){alert(e.message);}
+}
+export async function mountStandalone(root){
+  const shell=el('div','cfnd-standalone'),nav=el('nav','cfnd-standalone-nav',a('/','← 监控首页')),select=el('select','cfnd-server-select'),content=el('section','cfnd-report');shell.append(nav,content);root.replaceChildren(shell);content.textContent=T.loading;
+  let id=new URL(location.href).searchParams.get('server')||'';
+  async function load(run=''){try{const data=await request('detail?id='+encodeURIComponent(id)+(run?'&run='+encodeURIComponent(run):''));renderReport(content,data,{refresh:()=>load(),install:()=>copyInstall(content),select:load,update:async()=>{await request('refresh',{server_id:id});await load();}});}catch(e){content.replaceChildren(el('p','cfnd-banner',e.message),a('/admin#/admin',T.login));}}
+  try{const data=await request('home');for(const s of data.servers||[]){const option=el('option','',s.name+' '+(s.ip||''));option.value=s.id;select.append(option);}if(!data.servers?.some(s=>s.id===id))id=data.servers?.[0]?.id||'';select.value=id;select.addEventListener('change',()=>{id=select.value;void load();});nav.append(select);if(id)await load();else content.textContent=T.noData;}catch(e){content.textContent=e.message;}
+}
+if(typeof document!=='undefined')startAdapter();
