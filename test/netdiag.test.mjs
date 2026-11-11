@@ -55,7 +55,9 @@ test('uses the existing history primary-key partition without new indexes',async
 test('diagnostic assets use selective Worker-first routing and a directory index',()=>{
   const config=fs.readFileSync(new URL('../wrangler.toml',import.meta.url),'utf8');
   const entry=fs.readFileSync(new URL('../src/network-entry.js',import.meta.url),'utf8');
-  assert.ok(config.includes('run_worker_first = ["/netdiag", "/netdiag/*", "/api/netdiag/*"]'));
+  assert.ok(config.includes('run_worker_first = ["/", "/netdiag", "/netdiag/*", "/api/netdiag/*"]'));
+  assert.ok(entry.includes("const homepage=path==='/';"));
+  assert.ok(entry.includes("cfsm-netdiag-home"));
   assert.ok(entry.includes("file==='index.html'?'/netdiag/'"));
   assert.ok(entry.includes("path==='/netdiag/index.html'"));
 });
