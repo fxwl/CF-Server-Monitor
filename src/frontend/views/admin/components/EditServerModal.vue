@@ -172,19 +172,19 @@
       <div class="form-row">
         <div class="form-group flex-1">
           <label class="form-label">
-            {{ settings.custom_ct_name || trans.customCt }}
-            <HelpTooltip :text="trans.pingNodeTip" />
-          </label>
-          <input type="text" name="edit_custom_ct" autocomplete="off" v-model.trim="editForm.custom_ct" :class="['form-input', { 'input-invalid': pingNodeErrors.custom_ct }]" :placeholder="settings.custom_ct || 'gd-ct-dualstack.ip.zstaticcdn.com'">
-          <p v-if="pingNodeErrors.custom_ct" class="text-red text-sm mt-1">{{ pingNodeErrors.custom_ct }}</p>
-        </div>
-        <div class="form-group flex-1">
-          <label class="form-label">
             {{ settings.custom_cu_name || trans.customCu }}
             <HelpTooltip :text="trans.pingNodeTip" />
           </label>
           <input type="text" name="edit_custom_cu" autocomplete="off" v-model.trim="editForm.custom_cu" :class="['form-input', { 'input-invalid': pingNodeErrors.custom_cu }]" :placeholder="settings.custom_cu || 'gd-cu-dualstack.ip.zstaticcdn.com'">
           <p v-if="pingNodeErrors.custom_cu" class="text-red text-sm mt-1">{{ pingNodeErrors.custom_cu }}</p>
+        </div>
+        <div class="form-group flex-1">
+          <label class="form-label">
+            {{ settings.custom_ct_name || trans.customCt }}
+            <HelpTooltip :text="trans.pingNodeTip" />
+          </label>
+          <input type="text" name="edit_custom_ct" autocomplete="off" v-model.trim="editForm.custom_ct" :class="['form-input', { 'input-invalid': pingNodeErrors.custom_ct }]" :placeholder="settings.custom_ct || 'gd-ct-dualstack.ip.zstaticcdn.com'">
+          <p v-if="pingNodeErrors.custom_ct" class="text-red text-sm mt-1">{{ pingNodeErrors.custom_ct }}</p>
         </div>
       </div>
       <div class="form-row">

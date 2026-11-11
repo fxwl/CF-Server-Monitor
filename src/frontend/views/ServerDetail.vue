@@ -491,8 +491,8 @@ const ChartExpandButton = {
 }
 
 const PING_FIELD_DEFS = [
-  { field: 'ping_ct', lossField: 'loss_ct', labelKey: 'pingCt', className: 'ping-ct', datasetIndex: 0 },
-  { field: 'ping_cu', lossField: 'loss_cu', labelKey: 'pingCu', className: 'ping-cu', datasetIndex: 1 },
+  { field: 'ping_cu', lossField: 'loss_cu', labelKey: 'pingCu', className: 'ping-cu', datasetIndex: 0 },
+  { field: 'ping_ct', lossField: 'loss_ct', labelKey: 'pingCt', className: 'ping-ct', datasetIndex: 1 },
   { field: 'ping_cm', lossField: 'loss_cm', labelKey: 'pingCm', className: 'ping-cm', datasetIndex: 2 },
   { field: 'ping_bd', lossField: 'loss_bd', labelKey: 'pingBd', className: 'ping-bd', datasetIndex: 3 },
   { field: 'ping_node_1', lossField: 'loss_node_1', labelKey: 'node1', className: 'ping-node-1', datasetIndex: 4 },
@@ -971,8 +971,8 @@ const CHART_DEFS = [
   { key: 'proc', ref: () => procChartRef.value, datasets: [ds('Processes', '#f778ba', { fill: true })] },
   { key: 'net', ref: () => netChartRef.value, datasets: [ds('Download', '#00d4aa', { fill: true }), ds('Upload', '#4da6ff', { fill: true })], legend: true, formatValue: (v) => formatBytes(v) + '/s', tickFormat: (v) => formatBytes(v) },
   { key: 'conn', ref: () => connChartRef.value, datasets: [ds('TCP', '#b392f0'), ds('UDP', '#f778ba')], legend: true },
-  { key: 'ping', ref: () => pingChartRef.value, datasets: ['ct', 'cu', 'cm', 'bd', 'node_1', 'node_2', 'node_3', 'node_4'].map((key, i) => ds(pingLabel(key), ['#00d4aa', '#ffb870', '#4da6ff', '#b392f0', '#ff7b72', '#79c0ff', '#7ee787', '#ffa657'][i], { tension: 0.3 })), unit: ' ms', legend: true },
-  { key: 'loss', ref: () => lossChartRef.value, datasets: ['ct', 'cu', 'cm', 'bd', 'node_1', 'node_2', 'node_3', 'node_4'].map((key, i) => ds(pingLabel(key), ['#00d4aa', '#ffb870', '#4da6ff', '#b392f0', '#ff7b72', '#79c0ff', '#7ee787', '#ffa657'][i], { tension: 0.3 })), unit: '%', legend: true },
+  { key: 'ping', ref: () => pingChartRef.value, datasets: ['cu', 'ct', 'cm', 'bd', 'node_1', 'node_2', 'node_3', 'node_4'].map((key, i) => ds(pingLabel(key), ['#ffb870', '#00d4aa', '#4da6ff', '#b392f0', '#ff7b72', '#79c0ff', '#7ee787', '#ffa657'][i], { tension: 0.3 })), unit: ' ms', legend: true },
+  { key: 'loss', ref: () => lossChartRef.value, datasets: ['cu', 'ct', 'cm', 'bd', 'node_1', 'node_2', 'node_3', 'node_4'].map((key, i) => ds(pingLabel(key), ['#ffb870', '#00d4aa', '#4da6ff', '#b392f0', '#ff7b72', '#79c0ff', '#7ee787', '#ffa657'][i], { tension: 0.3 })), unit: '%', legend: true },
   { key: 'load', ref: () => loadChartRef.value, datasets: [ds(trans.value.load1m || '1 Min', '#00d4aa', { tension: 0.3 }), ds(trans.value.load5m || '5 Min', '#ffb870', { tension: 0.3 }), ds(trans.value.load15m || '15 Min', '#4da6ff', { tension: 0.3 })], legend: true }
 ]
 
@@ -1405,16 +1405,16 @@ const loadAllHistory = async (hours) => {
       updateChartDataset(charts.net, 1, allData, fieldAccessor('net_out_speed', true))
       updateChartDataset(charts.conn, 0, allData, fieldAccessor('tcp_conn', true))
       updateChartDataset(charts.conn, 1, allData, fieldAccessor('udp_conn', true))
-      updateChartDataset(charts.ping, 0, allData, fieldAccessor('ping_ct', true))
-      updateChartDataset(charts.ping, 1, allData, fieldAccessor('ping_cu', true))
+      updateChartDataset(charts.ping, 0, allData, fieldAccessor('ping_cu', true))
+      updateChartDataset(charts.ping, 1, allData, fieldAccessor('ping_ct', true))
       updateChartDataset(charts.ping, 2, allData, fieldAccessor('ping_cm', true))
       updateChartDataset(charts.ping, 3, allData, fieldAccessor('ping_bd', true))
       updateChartDataset(charts.ping, 4, allData, fieldAccessor('ping_node_1', true))
       updateChartDataset(charts.ping, 5, allData, fieldAccessor('ping_node_2', true))
       updateChartDataset(charts.ping, 6, allData, fieldAccessor('ping_node_3', true))
       updateChartDataset(charts.ping, 7, allData, fieldAccessor('ping_node_4', true))
-      updateChartDataset(charts.loss, 0, allData, fieldAccessor('loss_ct', true))
-      updateChartDataset(charts.loss, 1, allData, fieldAccessor('loss_cu', true))
+      updateChartDataset(charts.loss, 0, allData, fieldAccessor('loss_cu', true))
+      updateChartDataset(charts.loss, 1, allData, fieldAccessor('loss_ct', true))
       updateChartDataset(charts.loss, 2, allData, fieldAccessor('loss_cm', true))
       updateChartDataset(charts.loss, 3, allData, fieldAccessor('loss_bd', true))
       updateChartDataset(charts.loss, 4, allData, fieldAccessor('loss_node_1', true))

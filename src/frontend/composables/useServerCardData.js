@@ -19,8 +19,8 @@ export const DEFAULT_SERVER_CARD_CONFIG = {
 
 // 首页三网面板的候选节点，按展示优先级排列；loss 末条为 false（后台设为 0）时跳过。
 const THREE_NET_DEFS = [
-  { key: 'ct', pingField: 'ping_ct', lossField: 'loss_ct', nameKey: 'custom_ct_name', labelKey: 'pingCt', fallbackLabel: 'CT' },
   { key: 'cu', pingField: 'ping_cu', lossField: 'loss_cu', nameKey: 'custom_cu_name', labelKey: 'pingCu', fallbackLabel: 'CU' },
+  { key: 'ct', pingField: 'ping_ct', lossField: 'loss_ct', nameKey: 'custom_ct_name', labelKey: 'pingCt', fallbackLabel: 'CT' },
   { key: 'cm', pingField: 'ping_cm', lossField: 'loss_cm', nameKey: 'custom_cm_name', labelKey: 'pingCm', fallbackLabel: 'CM' },
   { key: 'bd', pingField: 'ping_bd', lossField: 'loss_bd', nameKey: 'custom_bd_name', labelKey: 'pingBd', fallbackLabel: 'BGP' },
   { key: 'node_1', pingField: 'ping_node_1', lossField: 'loss_node_1', nameKey: 'node_1_name', labelKey: null, fallbackLabel: 'Node 1' },
@@ -447,9 +447,9 @@ export function useServerCardData(props) {
   const hasThreeNetDetails = computed(() => threeNetDetails.value.length > 0)
 
   const pingList = computed(() => [
-    { label: 'CT', value: props.server.ping_ct },
-    { label: 'CU', value: props.server.ping_cu },
-    { label: 'CM', value: props.server.ping_cm },
+    { label: props.sysConfig?.custom_cu_name || 'CU', value: props.server.ping_cu },
+    { label: props.sysConfig?.custom_ct_name || 'CT', value: props.server.ping_ct },
+    { label: props.sysConfig?.custom_cm_name || 'CM', value: props.server.ping_cm },
     { label: 'BGP', value: props.server.ping_bd },
     { label: props.server.node_1_name || 'Node 1', value: props.server.ping_node_1 },
     { label: props.server.node_2_name || 'Node 2', value: props.server.ping_node_2 },
