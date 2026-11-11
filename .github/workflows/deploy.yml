@@ -55,7 +55,7 @@ jobs:
       - name: 🧪 Run regression tests
         run: |
           node --test test/agent-timestamp-guard.test.js
-          npm test
+          npm run test:all
 
       - name: 🏗️ Build frontend assets
         run: npm run build:frontend
