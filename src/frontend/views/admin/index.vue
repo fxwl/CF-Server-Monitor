@@ -1149,14 +1149,14 @@ const showCopyModal = ref(false)
 const copyServerId = ref('')
 const currentServerName = ref('')
 const targetOs = ref('linux')
-const installMode = ref('current-user')
+const installMode = ref('cfsm-user')
 const installGhProxy = ref('')
 const installVersion = ref('')
 const collectInterval = ref(0)
 const reportInterval = ref(60)
 const wssReportInterval = ref(2)
 const connectionMode = ref('auto')
-const pingMode = ref('tcp')
+const pingMode = ref('icmp')
 const customCt = ref('')
 const customCu = ref('')
 const customCm = ref('')
@@ -1174,7 +1174,7 @@ const autoUpdate = ref(false)
 const copiedCmd = ref(false)
 const showAutoDiscoveryModal = ref(false)
 const autoDiscoveryTargetOs = ref('linux')
-const autoDiscoveryInstallMode = ref('current-user')
+const autoDiscoveryInstallMode = ref('cfsm-user')
 const autoDiscoveryName = ref('')
 const autoDiscoveryVersion = ref('')
 const autoDiscoveryAutoUpdate = ref(false)
@@ -1780,8 +1780,11 @@ const getUninstallCommand = () => {
       return `$script = "$env:TEMP\\install-cf-probe.ps1"; Invoke-WebRequest -Uri ${quotePowerShellArg(ghUrl)} -OutFile $script -UseBasicParsing; PowerShell -ExecutionPolicy Bypass -File $script uninstall${proxyParam}`
     }
     const sudoPrefix = deleteTargetOs.value === 'mac' ? 'sudo ' : ''
-    const ghUrl = buildGhRawUrl(proxy, '/huilang-me/cfsm-agent/main/install.sh')
-    const proxyParam = proxy ? ` --install-ghproxy=${quotePosixShellArg(proxy)}` : ''
+    const isLinux = deleteTargetOs.value === 'linux'
+    const ghUrl = isLinux
+      ? `${selectedApiBase.value}/agent/install.sh`
+      : buildGhRawUrl(proxy, '/huilang-me/cfsm-agent/main/install.sh')
+    const proxyParam = !isLinux && proxy ? ` --install-ghproxy=${quotePosixShellArg(proxy)}` : ''
     const uninstallCommand = `curl -fsSL ${quotePosixShellArg(ghUrl)} | ${sudoPrefix}sh -s -- uninstall${proxyParam}`
     if (deleteTargetOs.value === 'linux' && deleteInstallMode.value === 'cfsm-user') {
       return buildUninstallAsCfsmCommand(uninstallCommand)
@@ -1799,7 +1802,7 @@ const copyCmd = (serverId) => {
   copyServerId.value = serverId
   currentServerName.value = server?.name || ''
   targetOs.value = 'linux'
-  installMode.value = 'current-user'
+  installMode.value = 'cfsm-user'
   installGhProxy.value = ''
   installVersion.value = ''
   collectInterval.value = server?.collect_interval ?? 0
@@ -1891,7 +1894,18 @@ const buildInstallAsCfsmCommand = (command, runStep) => {
 
   lines.push(
     'id cfsm >/dev/null 2>&1 || as_root useradd -m -s /bin/sh cfsm',
-    'as_root loginctl enable-linger cfsm'
+    'as_root loginctl enable-linger cfsm',
+    'CFSM_GID=$(id -g cfsm)',
+    'if [ -f /proc/sys/net/ipv4/ping_group_range ]; then',
+    '  CFSM_PING_RANGE=$(cat /proc/sys/net/ipv4/ping_group_range)',
+    '  set -- $CFSM_PING_RANGE',
+    '  CFSM_LOW=${1:-1}; CFSM_HIGH=${2:-0}',
+    '  if [ "$CFSM_LOW" -gt "$CFSM_HIGH" ]; then CFSM_LOW=$CFSM_GID; CFSM_HIGH=$CFSM_GID; fi',
+    '  if [ "$CFSM_GID" -lt "$CFSM_LOW" ]; then CFSM_LOW=$CFSM_GID; fi',
+    '  if [ "$CFSM_GID" -gt "$CFSM_HIGH" ]; then CFSM_HIGH=$CFSM_GID; fi',
+    '  printf "net.ipv4.ping_group_range = %s %s\\n" "$CFSM_LOW" "$CFSM_HIGH" | as_root tee /etc/sysctl.d/99-cfsm-ping-socket.conf >/dev/null',
+    '  as_root sysctl -p /etc/sysctl.d/99-cfsm-ping-socket.conf',
+    'fi'
   )
 
   lines.push(
@@ -1915,7 +1929,7 @@ const installUserAgent = () => {
 
 const getCustomInstallCommand = () => {
   const HOST = selectedApiBase.value
-  const autoUpdateFlag = autoUpdate.value ? 1 : 0
+  const autoUpdateFlag = targetOs.value === 'linux' ? 0 : (autoUpdate.value ? 1 : 0)
   const proxy = installGhProxy.value.trim()
   const version = installVersion.value.trim()
   const isDedicatedUserInstall = targetOs.value === 'linux' && installMode.value === 'cfsm-user'
@@ -1954,8 +1968,8 @@ const getCustomInstallCommand = () => {
     ].join('\n')
   }
   const params = ['install']
-  if (proxy) params.push(`--install-ghproxy=${quotePosixShellArg(proxy)}`)
-  if (version) params.push(`--install-version=${quotePosixShellArg(version)}`)
+  if (targetOs.value !== 'linux' && proxy) params.push(`--install-ghproxy=${quotePosixShellArg(proxy)}`)
+  if (targetOs.value !== 'linux' && version) params.push(`--install-version=${quotePosixShellArg(version)}`)
   params.push(
     `-id=${copyServerId.value}`,
     `-secret=${quotePosixShellArg(apiSecret.value)}`,
@@ -1964,8 +1978,13 @@ const getCustomInstallCommand = () => {
   )
   const ua = installUserAgent()
   if (ua) params.push(`-ua=${quotePosixShellArg(ua)}`)
-  const ghUrl = buildGhRawUrl(proxy, '/huilang-me/cfsm-agent/main/install.sh')
-  const installCommand = `curl -fsSL ${quotePosixShellArg(ghUrl)} | sh -s -- ${params.join(' ')}`
+  const isLinux = targetOs.value === 'linux'
+  const ghUrl = isLinux
+    ? `${HOST}/agent/install.sh`
+    : buildGhRawUrl(proxy, '/huilang-me/cfsm-agent/main/install.sh')
+  const installCommand = isLinux
+    ? `( set -e; cfsm_script=$(mktemp); trap 'rm -f "$cfsm_script"' EXIT; curl -fsSL ${quotePosixShellArg(ghUrl)} -o "$cfsm_script"; CFSM_ASSET_BASE=${quotePosixShellArg(HOST)} sh "$cfsm_script" ${params.join(' ')} )`
+    : `curl -fsSL ${quotePosixShellArg(ghUrl)} | sh -s -- ${params.join(' ')}`
   if (!isDedicatedUserInstall) return installCommand
 
   return buildInstallAsCfsmCommand(installCommand, trans.value.nonRootInstallRunStep)
@@ -1973,11 +1992,11 @@ const getCustomInstallCommand = () => {
 
 // 自动发现模式下安装命令不带 -id：Agent 首次上报时由服务端自动创建服务器。
 // name 留空时服务端回退到请求来源 IP；安装用户、代理、版本、名称与自动更新仅影响本次生成的命令。
-const buildAutoDiscoveryCommand = ({ targetOs: os = 'linux', installMode: mode = 'current-user', ghProxy = '', name = '', version = '', autoUpdate = false } = {}) => {
+const buildAutoDiscoveryCommand = ({ targetOs: os = 'linux', installMode: mode = 'cfsm-user', ghProxy = '', name = '', version = '', autoUpdate = false } = {}) => {
   const HOST = selectedApiBase.value
   const proxy = String(ghProxy || '').trim()
   const agentVersion = String(version || '').trim()
-  const autoUpdateFlag = autoUpdate ? 1 : 0
+  const autoUpdateFlag = os === 'linux' ? 0 : (autoUpdate ? 1 : 0)
   const serverName = String(name || '')
     .replace(/[\u0000-\u001f\u007f]/g, '')
     .trim()
@@ -2000,8 +2019,8 @@ const buildAutoDiscoveryCommand = ({ targetOs: os = 'linux', installMode: mode =
   }
 
   const params = ['install']
-  if (proxy) params.push(`--install-ghproxy=${quotePosixShellArg(proxy)}`)
-  if (agentVersion) params.push(`--install-version=${quotePosixShellArg(agentVersion)}`)
+  if (os !== 'linux' && proxy) params.push(`--install-ghproxy=${quotePosixShellArg(proxy)}`)
+  if (os !== 'linux' && agentVersion) params.push(`--install-version=${quotePosixShellArg(agentVersion)}`)
   params.push(
     `-secret=${quotePosixShellArg(apiSecret.value)}`,
     `-url=${HOST}/update`,
@@ -2010,8 +2029,13 @@ const buildAutoDiscoveryCommand = ({ targetOs: os = 'linux', installMode: mode =
   if (serverName) params.push(`-name=${quotePosixShellArg(serverName)}`)
   const ua = installUserAgent()
   if (ua) params.push(`-ua=${quotePosixShellArg(ua)}`)
-  const ghUrl = buildGhRawUrl(proxy, '/huilang-me/cfsm-agent/main/install.sh')
-  const installCommand = `curl -fsSL ${quotePosixShellArg(ghUrl)} | sh -s -- ${params.join(' ')}`
+  const isLinux = os === 'linux'
+  const ghUrl = isLinux
+    ? `${HOST}/agent/install.sh`
+    : buildGhRawUrl(proxy, '/huilang-me/cfsm-agent/main/install.sh')
+  const installCommand = isLinux
+    ? `( set -e; cfsm_script=$(mktemp); trap 'rm -f "$cfsm_script"' EXIT; curl -fsSL ${quotePosixShellArg(ghUrl)} -o "$cfsm_script"; CFSM_ASSET_BASE=${quotePosixShellArg(HOST)} sh "$cfsm_script" ${params.join(' ')} )`
+    : `curl -fsSL ${quotePosixShellArg(ghUrl)} | sh -s -- ${params.join(' ')}`
   if (os !== 'linux' || mode !== 'cfsm-user') return installCommand
 
   return buildInstallAsCfsmCommand(installCommand, trans.value.nonRootInstallRunStep)

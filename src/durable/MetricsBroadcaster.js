@@ -101,7 +101,8 @@ function toFiniteNumber(value) {
 function normalizeMetricTimestamp(value, fallback = Date.now()) {
   const number = Number(value);
   if (!Number.isFinite(number) || number <= 0) return fallback;
-  return number < 10000000000 ? number * 1000 : number;
+  const ms = number < 10000000000 ? number * 1000 : number;
+  return ms > fallback + 120000 ? fallback : ms;
 }
 
 function toPublicIpReachability(value) {

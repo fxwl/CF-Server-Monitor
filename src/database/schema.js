@@ -703,9 +703,10 @@ export async function getLatestMetrics(db, serverId, server = null) {
       SELECT * FROM metrics_history
       WHERE id >= ?
         AND id <= ?
+        AND timestamp <= ?
       ORDER BY id DESC
       LIMIT 1
-    `).bind(startId, endId).first();
+    `).bind(startId, endId, Date.now() + 120000).first();
     return result ? normalizeProbeMetricRow(result) : null;
   } catch (e) {
     console.error('获取最新指标数据失败:', e);
@@ -758,8 +759,8 @@ export async function getLatestMetricsForAllServers(db) {
       try {
         batchResults = await db.batch(chunk.map(item =>
           db.prepare(
-            'SELECT * FROM metrics_history WHERE id >= ? AND id <= ? ORDER BY id DESC LIMIT 1'
-          ).bind(item.startId, item.endId)
+            'SELECT * FROM metrics_history WHERE id >= ? AND id <= ? AND timestamp <= ? ORDER BY id DESC LIMIT 1'
+          ).bind(item.startId, item.endId, now + 120000)
         ));
       } catch (batchError) {
         // 整批失败时回退逐台查询，保持"单台异常不影响其它台"的既有语义
@@ -846,8 +847,8 @@ export async function getLatestTimestampsForAllServers(db, { servers = null } = 
       const chunk = items.slice(offset, offset + LATEST_QUERY_CHUNK_SIZE);
       const batchResults = await db.batch(chunk.map(item =>
         db.prepare(
-          'SELECT timestamp FROM metrics_history WHERE id >= ? AND id <= ? ORDER BY id DESC LIMIT 1'
-        ).bind(item.startId, item.endId)
+          'SELECT timestamp FROM metrics_history WHERE id >= ? AND id <= ? AND timestamp <= ? ORDER BY id DESC LIMIT 1'
+        ).bind(item.startId, item.endId, now + 120000)
       ));
       for (let index = 0; index < chunk.length; index++) {
         const rows = batchResults[index] && batchResults[index].results;

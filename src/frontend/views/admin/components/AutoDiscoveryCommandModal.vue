@@ -42,7 +42,7 @@
       </div>
 
       <div class="form-row">
-        <div class="form-group flex-1">
+        <div v-if="targetOs !== 'linux'" class="form-group flex-1">
           <label class="form-label">
             Agent {{ trans.version }}
             <HelpTooltip :text="trans.installVersionTip" />
@@ -56,7 +56,7 @@
           >
         </div>
 
-        <div class="form-group flex-1">
+        <div v-if="targetOs !== 'linux'" class="form-group flex-1">
           <label class="form-label">
             {{ trans.ghProxy }}
             <HelpTooltip :text="trans.ghProxyTip" />
@@ -75,7 +75,7 @@
           >
         </div>
 
-        <div class="form-group">
+        <div v-if="targetOs !== 'linux'" class="form-group">
           <label class="form-label">&nbsp;</label>
           <div class="checkbox-item no-margin">
             <input

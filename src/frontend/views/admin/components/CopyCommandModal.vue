@@ -18,7 +18,7 @@
           </select>
         </div>
 
-        <div class="form-group flex-1">
+        <div v-if="targetOs !== 'linux'" class="form-group flex-1">
           <label class="form-label">
             Agent {{ trans.version }}
             <HelpTooltip :text="targetOs === 'docker' ? trans.dockerVersionTip : trans.installVersionTip" />
@@ -45,7 +45,7 @@
           </select>
         </div>
 
-        <div class="form-group flex-1">
+        <div v-if="targetOs !== 'linux'" class="form-group flex-1">
           <label class="form-label">
             {{ trans.ghProxy }}
             <HelpTooltip :text="trans.ghProxyTip" />
@@ -84,7 +84,7 @@
         </div>
         <div class="config-row">
           <span class="config-label">{{ trans.pingMode }}</span>
-          <span class="config-value">{{ effectivePingMode === 'icmp' ? 'ICMP (root)' : 'TCP' }}</span>
+          <span class="config-value">{{ effectivePingMode === 'icmp' ? 'ICMP' : 'TCP' }}</span>
         </div>
         <div class="config-row">
           <span class="config-label">{{ trans.trafficResetDay }}</span>
@@ -94,7 +94,7 @@
           <span class="config-label">{{ trans.autoUpdate }}</span>
           <span class="config-value">
             <span :class="['config-badge', autoUpdate ? 'is-enabled' : 'is-disabled']">
-              {{ autoUpdate ? trans.enabled : trans.disabled }}
+              {{ targetOs === 'linux' ? trans.disabled : (autoUpdate ? trans.enabled : trans.disabled) }}
             </span>
           </span>
         </div>
@@ -225,9 +225,7 @@ const selectedGhProxy = computed({
 
 const showCustomGhProxy = computed(() => selectedGhProxy.value === CUSTOM_GH_PROXY_VALUE)
 const effectivePingMode = computed(() => (
-  props.targetOs === 'linux' && props.installMode === 'cfsm-user'
-    ? 'tcp'
-    : (props.pingMode === 'icmp' ? 'icmp' : 'tcp')
+  props.pingMode === 'icmp' ? 'icmp' : 'tcp'
 ))
 
 watch(

@@ -366,7 +366,7 @@ export default {
   connectionModeAuto: '自动（WSS + POST 兜底）',
   connectionModeHttp: '仅 HTTP POST',
   pingMode: 'Ping 模式',
-  pingModeIcmpRootHint: 'ICMP 必须以 root 安装才支持。',
+  pingModeIcmpRootHint: 'ICMP 可由非特权 Linux 用户使用；需内核允许 ping socket，且探针版本支持非特权 ICMP。',
   wssReportDisabledConnectionHint: 'WSS 上报已全局关闭，请在设置中开启。',
   targetOs: '目标系统',
   installMode: '安装用户',

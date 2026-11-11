@@ -44,6 +44,19 @@ jobs:
       - name: 📦 Install dependencies
         run: npm install
 
+      - name: 🔧 Setup Go for non-privileged ICMP probe
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.3'
+
+      - name: 🛡️ Build and verify ICMP probe binaries
+        run: bash scripts/build-icmp-agent.sh
+
+      - name: 🧪 Run regression tests
+        run: |
+          node --test test/agent-timestamp-guard.test.js
+          npm run test:all
+
       - name: 🏗️ Build frontend assets
         run: npm run build:frontend
 
