@@ -52,6 +52,11 @@ jobs:
       - name: 🛡️ Build and verify ICMP probe binaries
         run: bash scripts/build-icmp-agent.sh
 
+      - name: 🧪 Run regression tests
+        run: |
+          node --test test/agent-timestamp-guard.test.js
+          npm test
+
       - name: 🏗️ Build frontend assets
         run: npm run build:frontend
 
