@@ -1149,7 +1149,7 @@ const showCopyModal = ref(false)
 const copyServerId = ref('')
 const currentServerName = ref('')
 const targetOs = ref('linux')
-const installMode = ref('current-user')
+const installMode = ref('cfsm-user')
 const installGhProxy = ref('')
 const installVersion = ref('')
 const collectInterval = ref(0)
@@ -1174,7 +1174,7 @@ const autoUpdate = ref(false)
 const copiedCmd = ref(false)
 const showAutoDiscoveryModal = ref(false)
 const autoDiscoveryTargetOs = ref('linux')
-const autoDiscoveryInstallMode = ref('current-user')
+const autoDiscoveryInstallMode = ref('cfsm-user')
 const autoDiscoveryName = ref('')
 const autoDiscoveryVersion = ref('')
 const autoDiscoveryAutoUpdate = ref(false)
@@ -1799,7 +1799,7 @@ const copyCmd = (serverId) => {
   copyServerId.value = serverId
   currentServerName.value = server?.name || ''
   targetOs.value = 'linux'
-  installMode.value = 'current-user'
+  installMode.value = 'cfsm-user'
   installGhProxy.value = ''
   installVersion.value = ''
   collectInterval.value = server?.collect_interval ?? 0
@@ -1973,7 +1973,7 @@ const getCustomInstallCommand = () => {
 
 // 自动发现模式下安装命令不带 -id：Agent 首次上报时由服务端自动创建服务器。
 // name 留空时服务端回退到请求来源 IP；安装用户、代理、版本、名称与自动更新仅影响本次生成的命令。
-const buildAutoDiscoveryCommand = ({ targetOs: os = 'linux', installMode: mode = 'current-user', ghProxy = '', name = '', version = '', autoUpdate = false } = {}) => {
+const buildAutoDiscoveryCommand = ({ targetOs: os = 'linux', installMode: mode = 'cfsm-user', ghProxy = '', name = '', version = '', autoUpdate = false } = {}) => {
   const HOST = selectedApiBase.value
   const proxy = String(ghProxy || '').trim()
   const agentVersion = String(version || '').trim()
