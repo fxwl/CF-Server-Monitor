@@ -1,5 +1,5 @@
 {
-  "release": "2.8.7-fuzhou.20261111.1",
+  "release": "2.8.7-fuzhou.20261112.1",
   "upstream_version": "2.8.7",
   "merged_base": "031206f972e3ed0915f694f1046af585a1b5758a",
   "prior_ui_commit": "c1d681c7ab1f739500547f0acd4d591f1be0f173",
@@ -7,12 +7,24 @@
   "theme_revision": "538c95d024392771850b70c5ac06285261cf6acf",
   "agent_revision": "85208b81487e919aa8585e538ae82710e90961d2",
   "agent_mode": "linux-unprivileged-icmp",
-  "diagnostics_version": "1.2.0",
-  "targets": {"cu":"36.248.48.211","ct":"218.85.157.99","cm":"211.138.151.161"},
-  "target_order": ["cu","ct","cm"],
+  "diagnostics_version": "1.3.0",
+  "targets": {
+    "cu": "36.248.48.211",
+    "ct": "218.85.157.99",
+    "cm": "211.138.151.161"
+  },
+  "target_order": [
+    "cu",
+    "ct",
+    "cm"
+  ],
   "automatic_upstream_sync": false,
   "automatic_agent_upgrade": false,
   "automatic_diagnostics_upgrade": false,
   "dependency_install": "npm ci",
-  "update_policy": "Only reviewed security, reliability, or explicitly requested changes; never reset the customized main branch to upstream."
+  "update_policy": "Only reviewed security, reliability, or explicitly requested changes; never reset the customized main branch to upstream.",
+  "media_ai_checks": 11,
+  "media_ai_mode": "VPS IPv4 HTTPS direct / source-attributed",
+  "quality_fallback": "VPS direct provider observation",
+  "previous_frozen_commit": "a55259f2a79fba44da03f5cd475d0afea25ff06b"
 }

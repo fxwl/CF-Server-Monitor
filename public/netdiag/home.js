@@ -1,3 +1,4 @@
+import {compactRisk,compactMedia,metaInline,riskVisual,factorVisual,mediaVisual,miniRouteChart} from './visuals.js';
 // Frozen AnotherLuminaPlus adapter: compact cards; full reports in native server detail.
 const ORDER=['cu','ct','cm'];
 const NAMES={cu:'福州联通',ct:'福州电信',cm:'福州移动'};
@@ -22,11 +23,16 @@ function table(headers,rows){const n=el('table','cfnd-table',el('thead','',el('t
 function section(num,title,...content){return el('section','cfnd-section',el('h3','cfnd-section-title',el('span','cfnd-num',num),title),...content);}
 function flagBadge(name,f){const b=el('span','cfnd-badge',name+': '+(f.value==='mixed'?T.conflict:bool(f.value)));if(f.source)b.title=f.source;if(f.value==='mixed'||f.value===true)b.classList.add('cfnd-warn');return b;}
 function summaryCard(s){
-  const q=getHomeQuality(s.quality),n=el('section','cfnd-inline card-metric-section');n.dataset.cfndServer=s.id;
-  const top=el('div','cfnd-summary-top',el('span','cfnd-asn',[q.info?.asn,q.info?.operator].filter(Boolean).join(' · ')||'ASN: '+T.unknown));
-  n.append(top,el('div','cfnd-badges',q.risk?el('span','cfnd-badge',q.risk.provider+' '+T.risk+' '+q.risk.risk+'/100'):el('span','cfnd-badge',T.risk+': '+T.unknown),flagBadge(T.proxy,q.flags.proxy),flagBadge(T.hosting,q.flags.hosting)));
-  const routes=el('div','cfnd-summary-routes');for(const {label,data} of getHomeRoutes(s.route)){const content=data?.target_matches===false?T.oldTarget:readableLine(data);const row=el('div','cfnd-summary-route',el('span','cfnd-carrier',label),el('span','cfnd-path',content));row.title=content;routes.append(row);}
-  n.append(routes,a('/server/'+encodeURIComponent(s.id)+'#network-report',T.detail+' ›','cfnd-detail-link'));return n;
+ const n=el('div','cfnd-inline cfnd-native-metrics');n.dataset.cfndServer=s.id;
+ n.append(compactRisk(s.quality),compactMedia(s.media));
+ const rows=el('div','cfnd-summary-routes');
+ for(const {label,data} of getHomeRoutes(s.route)){
+   const text=data?.target_matches===false?T.oldTarget:readableLine(data);
+   const line=el('div','cfnd-summary-route',el('span','cfnd-carrier',label),el('span','cfnd-path',text));
+   line.title=text;rows.append(line);
+ }
+ n.append(rows,a('/server/'+encodeURIComponent(s.id)+'#network-report','网络详情','cfnd-detail-link'));
+ return n;
 }
 function sourceMatrix(q){
   const providers=q?.providers||[];
@@ -47,23 +53,31 @@ function routeReport(target,r,live){
   if(rows.length)root.append(table(['方式','Sent / OK','AVG / P50','MIN','MAX','MDEV / Variation','ICMP Loss'],rows));
   root.append(el('p','cfnd-muted',routeEndpointStatus(r)+' · '+(r.method||'UDP traceroute')));
   const hops=(r.hops||[]).map(h=>[h.ttl,h.private&&!h.ip?T.masked:h.ip||'*',(h.asns||[]).map(x=>'AS'+x).join(', ')||T.unknown,(h.asns||[]).map(readableAsn).join(' / ')||h.geo?.isp||T.unknown,[h.geo?.country,h.geo?.region,h.geo?.city].filter(Boolean).join(' / ')||T.unknown,(h.rtts_ms||[]).map(ms).join(' / ')||'*',h.annotation||'']);
-  root.append(table(['TTL','IP','ASN',T.operator,T.country,'RTT','Note'],hops),el('p','cfnd-muted',T.geoHint));return root;
+  const details=el('details','cfnd-fold',el('summary','','查看 '+hops.length+' 个完整跳点及 RTT / ASN 信息'),table(['TTL','IP','ASN',T.operator,T.country,'RTT','说明'],hops));
+  root.append(details,el('p','cfnd-muted',T.geoHint));return root;
 }
 export function renderReport(root,data,actions={}){
-  const s=data.server,q=s.quality,r=s.route;root.replaceChildren();root.className='cfnd-report';root.id='network-report';
+  const s=data.server,q=s.quality,r=s.route;root.replaceChildren();root.className='cfnd-report cfnd-native-report';root.id='network-report';
   const heading=el('header','cfnd-report-heading',el('div','',el('h2','',T.viewReport),el('p','cfnd-muted',(s.name||'')+' · '+str(s.ip)+' · '+data.release)));
   const controls=el('div','cfnd-controls');if(actions.refresh)controls.append(button(T.refresh,actions.refresh));if(actions.update&&data.can_refresh)controls.append(button(T.update,actions.update));if(actions.install&&data.can_refresh)controls.append(button('复制组件接入命令',actions.install));heading.append(controls);root.append(heading);
-  const overview=[[ 'IPv4',str(s.ip_v4)],[ 'IPv6',str(s.ip_v6)],['Agent',when(s.ip_seen_at)],[T.quality,when(q?.created_at)],[T.route,when(r?.created_at)],['Version',str(r?.version)]];
-  const cells=overview.map(([k,v])=>el('div','cfnd-kv',el('small','',k),el('strong','',v)));
-  root.append(section('01',T.basic,el('div','cfnd-kv-grid',...cells)));
-  if(q?.stale||r?.stale||s.viewing_history)root.append(el('p','cfnd-banner',T.staleWarning));
-  root.append(section('02',T.type+' / '+T.source,sourceMatrix(q)));
-  root.append(section('03',T.risk,scores(q),el('p','cfnd-muted',T.caveat)));
-  root.append(section('04',T.factor,factors(q)));
-  root.append(section('05',T.route+' / '+T.allHops,...(data.targets||[]).map(t=>routeReport(t,r?.routes?.find(x=>x.key===t.key),s.live?.rows?.find(x=>x.key===t.key))),el('p','cfnd-muted',T.traceHint)));
-  const history=(data.history||[]).map(h=>[when(h.created_at),h.kind==='quality'?T.quality:T.route,str(h.ip),STATUS[h.status]||h.status,actions.select?button(T.check,()=>actions.select(h.id)):T.unknown]);
-  root.append(section('06',T.history,history.length?table([T.time,'Type','IP','Status',T.check],history):el('p','cfnd-muted',T.noData)));
-  root.append(section('07',T.extra,el('p','cfnd-muted',T.noExtra)));
+  const meta=el('div','cfnd-native-meta');
+  const first=(q?.providers||[]).find(p=>p.status==='ok'&&(p.asn||p.operator||p.country));
+  for(const [k,v] of [['IPv4',s.ip_v4],['IPv6',s.ip_v6],['ASN',first?.asn],['运营商',first?.operator],['地区',[first?.country,first?.region,first?.city].filter(Boolean).join(' · ')],['IP 数据',when(q?.created_at)]]){
+    if(v)meta.append(el('span','cfnd-meta-pair',el('b','',k),el('span','',v)));
+  }
+  root.append(meta);
+  if(q?.stale||r?.stale||s.media?.stale||s.viewing_history)root.append(el('p','cfnd-banner',T.staleWarning));
+  root.append(section('01','IP 风险与来源',riskVisual(q),el('p','cfnd-muted',T.caveat)));
+  root.append(section('02','风险因子',factorVisual(q)));
+  root.append(section('03','流媒体 / AI 服务',mediaVisual(s.media)));
+  root.append(section('04','福州三网回程',miniRouteChart(r,data.targets,s.live),
+     ...(data.targets||[]).map(t=>routeReport(t,r?.routes?.find(x=>x.key===t.key),s.live?.rows?.find(x=>x.key===t.key))),
+     el('p','cfnd-muted',T.traceHint)));
+  const sourceDetails=el('details','cfnd-fold',el('summary','','展开完整 IP 基础信息和各数据源字段'),sourceMatrix(q));
+  root.append(section('05','基础信息明细',sourceDetails));
+  const history=(data.history||[]).map(h=>[when(h.created_at),h.kind==='quality'?T.quality:h.kind==='media'?'流媒体 / AI':T.route,str(h.ip),STATUS[h.status]||h.status,actions.select?button(T.check,()=>actions.select(h.id)):T.unknown]);
+  root.append(section('06',T.history,history.length?table([T.time,'类型','IP','状态',T.check],history):el('p','cfnd-muted',T.noData)));
+  root.append(el('p','cfnd-muted','检测范围：IP 质量、福州三网、流媒体/AI 网页与目录信号。未做账号登录或真实媒体播放，也未进行批量 DNSBL、带宽测速和远程执行。'));
 }
 async function request(path,body){const headers={Accept:'application/json'};try{const token=localStorage.getItem('jwt_token');if(token)headers.Authorization='Bearer '+token;}catch{}if(body){headers['Content-Type']='application/json';headers['X-CFSM-Netdiag']='1';}const c=new AbortController(),timer=setTimeout(()=>c.abort(),18000);try{const r=await fetch('/api/netdiag/'+path,{method:body?'POST':'GET',headers,credentials:'same-origin',cache:'no-store',redirect:'error',signal:c.signal,body:body?JSON.stringify(body):undefined});const data=await r.json();if(!r.ok)throw Error(r.status===401?T.login:data.error||'HTTP '+r.status);return data;}finally{clearTimeout(timer);}}
 function setTitleIp(title,server){
@@ -71,6 +85,8 @@ function setTitleIp(title,server){
   let ip=title.parentElement?.querySelector(':scope > .cfnd-title-ip');
   if(!ip){ip=el('span','cfnd-title-ip');title.after(ip);if(/^H[1-6]$/.test(title.tagName))title.classList.add('cfnd-native-title');else title.parentElement?.classList.add('cfnd-title-row');}
   if(ip.textContent!==server.ip)ip.textContent=server.ip;ip.title=server.ip;ip.dataset.cfndServer=server.id;
+  let info=title.parentElement?.querySelector(':scope > .cfnd-native-info');const next=metaInline(server);
+  if(next){if(info){if(info.textContent!==next.textContent)info.replaceWith(next);}else ip.after(next);}else info?.remove();
 }
 export function startAdapter(){
   if(location.pathname.startsWith('/netdiag'))return;
@@ -109,7 +125,7 @@ export function startAdapter(){
   void refreshHome();schedule();
 }
 async function copyInstall(root){
-  const version='1.2.0',base='/netdiag/releases/'+version+'/';
+  const version='1.3.0',base='/netdiag/releases/'+version+'/';
   try{
     const response=await fetch(base+'manifest.json',{cache:'no-store',credentials:'same-origin'});
     if(!response.ok)throw Error('manifest_unavailable');const manifest=await response.json();

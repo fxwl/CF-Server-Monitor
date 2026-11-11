@@ -1,6 +1,6 @@
 # Frozen Fuzhou monitoring release
 
-Release: **2.8.7-fuzhou.20261111.1**. This is a local stable integration, not a new upstream CFSM release.
+Release: **2.8.7-fuzhou.20261112.1**. This is a local stable integration, not a new upstream CFSM release.
 
 The base is `031206f972e3ed0915f694f1046af585a1b5758a`, which already contains the prior NQ/TQ-style UI work plus the separate chat's non-root ICMP installer and future-timestamp guards. Keep those fixes. No histories or settings are reset by this release.
 
@@ -25,3 +25,13 @@ Production is the existing **cf-server-monitor** Worker, existing D1 UUID and Du
 The daily upstream-sync schedule has been removed. Keep the package lock with `npm ci`, pinned theme and pinned Go source. A deliberate reviewed commit can still trigger a build; no schedule pulls or deploys new upstream releases. Necessary security/reliability fixes must be evaluated and regression-tested in a separate branch. Record a backup branch before changes and do not force-reset main.
 
 Rollback uses the previous successful Worker deployment and leaves D1 data intact. The backup source branch is `backup/pre-stable-merge-20261111-031206f`. Application rollback does not restore external database history.
+
+## 2026-11-12: Media/AI availability and integrated risk charts
+
+The main monitor still runs ICMP as the dedicated cfsm account. Main agents remain pinned. A separate non-root diagnostics collector **1.3.0** adds VPS-originated IPv4 checks for Netflix (two title pages), Disney+, YouTube Premium, Prime Video, Spotify, TikTok, ChatGPT, OpenAI API, Claude, Gemini and Grok. No account credentials, content playback, proxies, unlock bypasses, authentication attempts, speed tests or elevated network capabilities are used. Requests only target fixed HTTPS allowlisted domains with bounded timeouts and bytes. Statuses distinguish *catalog signal*, *originals-only signal*, *web reachable*, *requires login*, *region denial*, *challenge*, *unknown* and *network failure*. Only Netflix returns limited catalog-title evidence; these signals do not verify authenticated playback or app/API eligibility.
+
+VPS-originated fallback lookup retrieves source-attributed IP quality data from proxycheck.io, ipapi.is, ipwho.is and IPinfo at most twice daily. The first two can supply available risk indicators; the last two are metadata only. A provider failure or missing field is *unknown*, never a zero-risk or clean-IP score. The Worker still performs its existing cached lookups independently.
+
+The native AnotherLuminaPlus card now shows thin score bars, risk-factor signals, media/AI evidence segments and the three Fuzhou routes. IP, ASN and operator fit alongside native identifying information. The existing native server detail embeds risk/provider charts, the full factor matrix, service availability, expandable full hop tables and history. No full-width competing dashboard is introduced. Existing resource charts, WAF, legacy route records, and metrics history are preserved.
+
+Collector **1.2.0** is retained immutably under /netdiag/releases/1.2.0/, as is its original manifest. Collector **1.3.0** is separate under /netdiag/releases/1.3.0/ and must be installed once per VPS to start media/AI checks. The primary monitoring Agent is **not** reinstalled. Build deterministically stamps collector and installer SHA256 checksums, then verifies packaged assets before production deploy. Daily upstream synchronization remains disabled, and release sources are preserved in Git history.

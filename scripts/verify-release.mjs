@@ -13,4 +13,12 @@ for(const [file,key] of [['collector.py','collector_sha256'],['install.sh','inst
 for(const arch of ['amd64','arm64'])assert.ok(fs.statSync('public/agent/cf-probe-linux-'+arch).size>1000000);
 assert.ok(!/^\s+schedule:/m.test(fs.readFileSync('.github/workflows/sync.yml','utf8')));
 assert.ok(fs.readFileSync('public/netdiag/stable/install.sh','utf8').includes(sums.collector_sha256));
-console.log('Release lock, agent binaries, checksums, and disabled automatic upstream sync verified.');
+const next=JSON.parse(fs.readFileSync('public/netdiag/releases/1.3.0/manifest.json','utf8'));
+assert.equal(next.version,'1.3.0');
+for(const [file,key] of [['collector.py','collector_sha256'],['install.sh','install_sha256']])
+ assert.equal(crypto.createHash('sha256').update(fs.readFileSync('public/netdiag/releases/1.3.0/'+file)).digest('hex'),next[key]);
+assert.ok(fs.readFileSync('public/netdiag/releases/1.3.0/install.sh','utf8').includes(next.collector_sha256));
+assert.ok(fs.readFileSync('src/network-entry.js','utf8').includes('/netdiag/releases/1.3.0/'));
+assert.ok(fs.readFileSync('src/network-entry.js','utf8').includes("'visuals.js'"));
+assert.equal(lock.diagnostics_version,'1.3.0');
+console.log('Frozen release, binary, historic 1.2.0 and new 1.3.0 checksums verified.');

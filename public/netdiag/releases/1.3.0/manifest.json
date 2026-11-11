@@ -1,0 +1,14 @@
+{
+  "version": "1.3.0",
+  "release": "2.8.7-fuzhou.20261112.1",
+  "auto_update": false,
+  "collector_sha256": "__COLLECTOR_SHA256__",
+  "install_sha256": "__INSTALL_SHA256__",
+  "targets": [
+    "cu",
+    "ct",
+    "cm"
+  ],
+  "media_services": 11,
+  "mode": "icmp-unprivileged-udp-https-unlock-and-quality"
+}

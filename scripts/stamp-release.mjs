@@ -1,0 +1,16 @@
+import fs from 'node:fs';
+import crypto from 'node:crypto';
+import assert from 'node:assert/strict';
+const base='public/netdiag/releases/1.3.0/';
+const sum=path=>crypto.createHash('sha256').update(fs.readFileSync(path)).digest('hex');
+const collector=sum(base+'collector.py');
+let install=fs.readFileSync(base+'install.sh','utf8');
+assert.equal(install.split('__COLLECTOR_SHA256__').length,2,'installer hash marker must appear once');
+install=install.replace('__COLLECTOR_SHA256__',collector);
+fs.writeFileSync(base+'install.sh',install);
+const manifest=JSON.parse(fs.readFileSync(base+'manifest.json','utf8'));
+assert.equal(manifest.version,'1.3.0');
+manifest.collector_sha256=collector;
+manifest.install_sha256=sum(base+'install.sh');
+fs.writeFileSync(base+'manifest.json',JSON.stringify(manifest,null,2)+'\n');
+console.log('Stamped immutable 1.3.0 collector and installer checksums: '+collector.slice(0,12));

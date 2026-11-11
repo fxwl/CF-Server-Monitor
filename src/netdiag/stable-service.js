@@ -1,8 +1,9 @@
 import {DiagnosticError,publicIP,text,finite,limitedJson,secretEqual,validateReport,routeChanges,fingerprint,classifyRoute} from './core.js';
 import {ensureSchema} from './service.js';
+import {ensureMediaSchema,lastMedia,sanitizeMedia,mediaHistory,mediaRun,acceptObservations,MEDIA_VERSION} from './media-service.js';
 
-export const RELEASE='2.8.7-fuzhou.20261111.1';
-export const COLLECTOR='1.2.0';
+export const RELEASE='2.8.7-fuzhou.20261112.1';
+export const COLLECTOR='1.3.0';
 export const STABLE_TARGETS=Object.freeze([
   {key:'cu',label:'\u798f\u5dde\u8054\u901a',host:'36.248.48.211',port:0,mode:'icmp'},
   {key:'ct',label:'\u798f\u5dde\u7535\u4fe1',host:'218.85.157.99',port:0,mode:'icmp'},
@@ -50,13 +51,13 @@ export function sanitizeQuality(record){
       checked_at:p.checked_at,source:text(p.source,200),score_note:text(p.score_note,300)}))};
 }
 async function summary(db,s,admin,now,full=false){
-  const [m,q,r]=await Promise.all([latestMetrics(db,s,now),last(db,s.id,'quality',now),last(db,s.id,'route',now)]);
-  const ip=publicAddress(m),quality=sanitizeQuality(q),route=sanitizeRoute(r,{admin});
-  if(quality)quality.stale=stale(q,ip,now);if(route)route.stale=stale(r,ip,now)||route.routes.some(x=>!x.target_matches);
+  const [m,q,r,u]=await Promise.all([latestMetrics(db,s,now),last(db,s.id,'quality',now),last(db,s.id,'route',now),lastMedia(db,s.id,now)]);
+  const ip=publicAddress(m),quality=sanitizeQuality(q),route=sanitizeRoute(r,{admin}),media=sanitizeMedia(u);
+  if(quality)quality.stale=stale(q,ip,now);if(route)route.stale=stale(r,ip,now)||route.routes.some(x=>!x.target_matches);if(media)media.stale=stale(u,ip,now);
   if(!full&&route)route.routes=route.routes.map(x=>({key:x.key,label:x.label,host:x.host,target_ip:x.target_ip,target_matches:x.target_matches,status:x.status,reached:x.reached,
     line:x.line,icmp:x.icmp,tcp:x.tcp,visible_count:x.hops.filter(h=>h.ip).length}));
   return{id:s.id,name:text(s.name,120),region:text(s.region,20),ip,ip_v4:publicIP(m.ip_v4)?m.ip_v4:null,ip_v6:publicIP(m.ip_v6)?m.ip_v6:null,ip_seen_at:m.timestamp||null,
-    live:{at:m.timestamp||null,mode:s.ping_mode||'icmp',rows:STABLE_TARGETS.map(t=>({key:t.key,label:t.label,value:finite(m['ping_'+t.key],0,30000),loss:finite(m['loss_'+t.key],0,100)}))},quality,route};
+    live:{at:m.timestamp||null,mode:s.ping_mode||'icmp',rows:STABLE_TARGETS.map(t=>({key:t.key,label:t.label,value:finite(m['ping_'+t.key],0,30000),loss:finite(m['loss_'+t.key],0,100)}))},quality,route,media};
 }
 async function agentAccess(request,env,id){
   const token=request.headers.get('Authorization')?.match(/^Bearer (.+)$/)?.[1]||'';
@@ -69,7 +70,7 @@ async function agentAccess(request,env,id){
   return {server,ip};
 }
 export function validateStableReport(body,now=Date.now()){
-  if(body?.schema_version!==2||body.version!==COLLECTOR)throw new DiagnosticError('unsupported_report_schema');
+  if(body?.schema_version!==2||!['1.2.0',COLLECTOR].includes(body.version))throw new DiagnosticError('unsupported_report_schema');
   if(!Array.isArray(body.routes))throw new DiagnosticError('invalid_report');
   const adapted={...body,schema_version:1,routes:body.routes?.map(r=>({...r,port:0,tcp:{attempts:0,successes:0,median_ms:null}}))};
   const valid=validateReport(adapted,STABLE_TARGETS,now);
@@ -107,34 +108,44 @@ async function acceptStableReport(request,env){
 }
 export async function handleStableApi(request,env,ctx,deps){
   const url=new URL(request.url),path=url.pathname;
-  if(!['/api/netdiag/home','/api/netdiag/detail','/api/netdiag/config-stable','/api/netdiag/report-stable','/api/netdiag/release'].includes(path))return null;
+  if(!['/api/netdiag/home','/api/netdiag/detail','/api/netdiag/config-stable','/api/netdiag/report-stable','/api/netdiag/observations','/api/netdiag/release'].includes(path))return null;
   try{
-    if(path==='/api/netdiag/release'&&request.method==='GET')return json({release:RELEASE,collector:COLLECTOR,auto_update:false,upstream:'2.8.7',target_order:STABLE_TARGETS.map(t=>t.key)});
+    if(path==='/api/netdiag/release'&&request.method==='GET')return json({release:RELEASE,collector:COLLECTOR,media_version:MEDIA_VERSION,media_enabled:true,auto_update:false,upstream:'2.8.7',target_order:STABLE_TARGETS.map(t=>t.key)});
     if(path==='/api/netdiag/config-stable'&&request.method==='GET'){
-      await agentAccess(request,env,idCheck(url.searchParams.get('id')));
-      return json({schema_version:2,version:COLLECTOR,targets:STABLE_TARGETS,interval_hours:12,max_hops:30});
+      const {server}=await agentAccess(request,env,idCheck(url.searchParams.get('id')));
+      const metric=await latestMetrics(env.DB,server,Date.now());
+      return json({schema_version:2,version:COLLECTOR,public_ip:publicAddress(metric),targets:STABLE_TARGETS,interval_hours:12,max_hops:30});
     }
     if(path==='/api/netdiag/report-stable'&&request.method==='POST'){await ensureSchema(env.DB);return json(await acceptStableReport(request,env));}
+    if(path==='/api/netdiag/observations'&&request.method==='POST'){
+      await ensureSchema(env.DB);const id=idCheck(request.headers.get('X-CFSM-Server-ID'));const {ip}=await agentAccess(request,env,id);
+      return json(await acceptObservations(env.DB,id,ip,await limitedJson(request,131072)));
+    }
     if(request.method!=='GET')throw new DiagnosticError('method_not_allowed',405);
     const settings=await deps.loadSettings(env.DB),admin=await deps.checkAuth(request,env,settings);
     if(!admin&&settings.is_public!=='true'&&settings.is_public!==true)throw new DiagnosticError('unauthorized',401);
-    await ensureSchema(env.DB);const now=Date.now();
+    await ensureSchema(env.DB);await ensureMediaSchema(env.DB);const now=Date.now();
     if(path==='/api/netdiag/home'){
       const rows=await env.DB.prepare('SELECT * FROM servers ORDER BY sort_order LIMIT 100').all();
       return json({release:RELEASE,generated_at:now,order:STABLE_TARGETS.map(t=>t.key),targets:STABLE_TARGETS,servers:await Promise.all((rows.results||[]).filter(s=>visible(s,admin)).map(s=>summary(env.DB,s,admin,now)))});
     }
     const s=await serverById(env.DB,idCheck(url.searchParams.get('id')));if(!visible(s,admin))throw new DiagnosticError('server_not_found',404);
     const data=await summary(env.DB,s,admin,now,true);
-    const records=await env.DB.prepare('SELECT id,kind,created_at,ip,status FROM netdiag_runs WHERE server_id=? AND created_at<=? ORDER BY created_at DESC LIMIT 20').bind(s.id,now+120000).all();
+    const [records,mediaRecords]=await Promise.all([env.DB.prepare('SELECT id,kind,created_at,ip,status FROM netdiag_runs WHERE server_id=? AND created_at<=? ORDER BY created_at DESC LIMIT 20').bind(s.id,now+120000).all(),mediaHistory(env.DB,s.id,now)]);
+    const history=[...(records.results||[]),...mediaRecords].sort((a,b)=>b.created_at-a.created_at).slice(0,30);
     const run=url.searchParams.get('run');
     if(run){
       if(run.length>180)throw new DiagnosticError('invalid_record_id');
-      const row=await env.DB.prepare('SELECT id,kind,created_at,ip,status,payload FROM netdiag_runs WHERE id=? AND server_id=? AND created_at<=?').bind(run,s.id,now+120000).first();
-      if(!row)throw new DiagnosticError('record_not_found',404);
-      data[row.kind]=row.kind==='route'?sanitizeRoute(decode(row),{admin}):sanitizeQuality(decode(row));
+      if(run.includes(':media:')){
+        const historical=await mediaRun(env.DB,s.id,run,now);if(!historical)throw new DiagnosticError('record_not_found',404);data.media=historical;
+      }else{
+        const row=await env.DB.prepare('SELECT id,kind,created_at,ip,status,payload FROM netdiag_runs WHERE id=? AND server_id=? AND created_at<=?').bind(run,s.id,now+120000).first();
+        if(!row)throw new DiagnosticError('record_not_found',404);
+        data[row.kind]=row.kind==='route'?sanitizeRoute(decode(row),{admin}):sanitizeQuality(decode(row));
+      }
       data.viewing_history=true;
     }
-    return json({release:RELEASE,generated_at:now,server:data,targets:STABLE_TARGETS,history:records.results||[],can_refresh:!!admin,
-      capabilities:{speedtest:false,remote_shell:false,media_unlock:false,mail_probe:false,dnsbl_bulk:false}});
+    return json({release:RELEASE,generated_at:now,server:data,targets:STABLE_TARGETS,history,can_refresh:!!admin,
+      capabilities:{speedtest:false,remote_shell:false,media_unlock:true,ai_reachability:true,mail_probe:false,dnsbl_bulk:false}});
   }catch(e){return json({error:e instanceof DiagnosticError?e.code:'diagnostic_service_error'},e instanceof DiagnosticError?e.status:500);}
 }
