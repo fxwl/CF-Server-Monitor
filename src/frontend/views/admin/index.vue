@@ -1780,7 +1780,7 @@ const getUninstallCommand = () => {
       return `$script = "$env:TEMP\\install-cf-probe.ps1"; Invoke-WebRequest -Uri ${quotePowerShellArg(ghUrl)} -OutFile $script -UseBasicParsing; PowerShell -ExecutionPolicy Bypass -File $script uninstall${proxyParam}`
     }
     const sudoPrefix = deleteTargetOs.value === 'mac' ? 'sudo ' : ''
-    const ghUrl = buildGhRawUrl(proxy, '/huilang-me/cfsm-agent/main/install.sh')
+    const ghUrl = `${selectedApiBase.value}/agent/install.sh`
     const proxyParam = proxy ? ` --install-ghproxy=${quotePosixShellArg(proxy)}` : ''
     const uninstallCommand = `curl -fsSL ${quotePosixShellArg(ghUrl)} | ${sudoPrefix}sh -s -- uninstall${proxyParam}`
     if (deleteTargetOs.value === 'linux' && deleteInstallMode.value === 'cfsm-user') {
@@ -1891,7 +1891,12 @@ const buildInstallAsCfsmCommand = (command, runStep) => {
 
   lines.push(
     'id cfsm >/dev/null 2>&1 || as_root useradd -m -s /bin/sh cfsm',
-    'as_root loginctl enable-linger cfsm'
+    'as_root loginctl enable-linger cfsm',
+    'CFSM_GID=$(id -g cfsm)',
+    'if [ -f /proc/sys/net/ipv4/ping_group_range ]; then',
+    '  as_root sh -c "printf \'net.ipv4.ping_group_range = %s %s\\n\' \"$1\" \"$1\" > /etc/sysctl.d/90-cfsm-icmp.conf" sh "$CFSM_GID"',
+    '  as_root sysctl -p /etc/sysctl.d/90-cfsm-icmp.conf',
+    'fi'
   )
 
   lines.push(
@@ -1964,7 +1969,7 @@ const getCustomInstallCommand = () => {
   )
   const ua = installUserAgent()
   if (ua) params.push(`-ua=${quotePosixShellArg(ua)}`)
-  const ghUrl = buildGhRawUrl(proxy, '/huilang-me/cfsm-agent/main/install.sh')
+  const ghUrl = `${selectedApiBase.value}/agent/install.sh`
   const installCommand = `curl -fsSL ${quotePosixShellArg(ghUrl)} | sh -s -- ${params.join(' ')}`
   if (!isDedicatedUserInstall) return installCommand
 
@@ -2010,7 +2015,7 @@ const buildAutoDiscoveryCommand = ({ targetOs: os = 'linux', installMode: mode =
   if (serverName) params.push(`-name=${quotePosixShellArg(serverName)}`)
   const ua = installUserAgent()
   if (ua) params.push(`-ua=${quotePosixShellArg(ua)}`)
-  const ghUrl = buildGhRawUrl(proxy, '/huilang-me/cfsm-agent/main/install.sh')
+  const ghUrl = `${selectedApiBase.value}/agent/install.sh`
   const installCommand = `curl -fsSL ${quotePosixShellArg(ghUrl)} | sh -s -- ${params.join(' ')}`
   if (os !== 'linux' || mode !== 'cfsm-user') return installCommand
 
