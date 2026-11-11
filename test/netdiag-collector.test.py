@@ -85,4 +85,35 @@ class CollectorTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p=pathlib.Path(d)/'state.json';m.write_json(p,{'ok':True});self.assertEqual(p.stat().st_mode&0o777,0o600);self.assertTrue(json.loads(p.read_text())['ok'])
 
+
+    def test_five_tcp_handshakes_are_bounded_and_expose_actual_failures(self):
+        with mock.patch.object(m.socket,'create_connection',side_effect=ConnectionRefusedError) as conn:
+            result=m.tcp_sample('94.24.39.45',443)
+            self.assertEqual(conn.call_count,5)
+            self.assertEqual(result['attempts'],5)
+            self.assertEqual(result['successes'],0)
+            self.assertIsNone(result['median_ms'])
+            self.assertIsNone(result['jitter_ms'])
+
+    def test_geo_never_queries_private_hops_and_respects_public_cache(self):
+        with tempfile.TemporaryDirectory() as d:
+            route={'hops':[{'ttl':1,'ip':'10.0.0.1','asns':[]},{'ttl':2,'ip':'8.8.8.8','asns':[15169]}]}
+            def resolver(url,**kwargs):
+                self.assertIn('8.8.8.8',url)
+                return {'success':True,'ip':'8.8.8.8','country':'United States','region':'California','city':'Mountain View','connection':{'isp':'Google'}}
+            with mock.patch.object(m,'json_request',side_effect=resolver) as upstream:
+                m.enrich_geos([route],pathlib.Path(d))
+                self.assertEqual(upstream.call_count,1)
+                self.assertEqual(route['hops'][1]['geo']['city'],'Mountain View')
+                self.assertNotIn('geo',route['hops'][0])
+                m.enrich_geos([route],pathlib.Path(d))
+                self.assertEqual(upstream.call_count,1)
+
+    def test_geo_provider_outage_does_not_forge_locations(self):
+        with tempfile.TemporaryDirectory() as d:
+            route={'hops':[{'ttl':1,'ip':'8.8.8.8','asns':[]}]}
+            with mock.patch.object(m,'json_request',side_effect=OSError('offline')):
+                m.enrich_geos([route],pathlib.Path(d))
+                self.assertNotIn('geo',route['hops'][0])
+
 if __name__=='__main__':unittest.main()

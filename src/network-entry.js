@@ -38,8 +38,8 @@ export default {
         }})
         .on('body',{element(e){
           if(homepage){
-            // Outside Vue's mount root: compatible with the external AnotherLumina theme.
-            e.prepend('<section id="cfsm-netdiag-home" aria-label="福州网络诊断"><div class="cfsm-netdiag-boot">正在加载福州线路概览…</div></section>',{html:true});
+            // AnotherLuminaPlus is a React app. Mount inside the existing node cards
+            // after hydration, not as a separate banner or duplicate dashboard.
             e.append('<script type="module" src="/netdiag/assets/home.js"></script>',{html:true});
           }else{
             e.append('<a id="cfsm-netdiag-link" href="/netdiag">IP &#19982;&#32447;&#36335;</a>',{html:true});

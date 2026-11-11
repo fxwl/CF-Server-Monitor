@@ -1,6 +1,6 @@
 import { isIP } from 'node:net';
 
-export const VERSION = '1.0.0';
+export const VERSION = '1.1.0';
 export const ORDER = Object.freeze(['cu', 'ct', 'cm']);
 export const LABELS = Object.freeze({cu:'\u798f\u5dde\u8054\u901a',ct:'\u798f\u5dde\u7535\u4fe1',cm:'\u798f\u5dde\u79fb\u52a8'});
 export const TARGETS = Object.freeze([
@@ -10,10 +10,11 @@ export const TARGETS = Object.freeze([
 ]);
 export const LIMITS = Object.freeze({body:65536, upstream:131072, maxHops:30, retentionDays:30, maxRuns:60, intervalHours:12});
 export const ASN_LABELS = Object.freeze({
-  9929:'China Unicom AS9929',4837:'China Unicom 169 / AS4837',
-  10099:'China Unicom Global AS10099',4809:'China Telecom CN2 / AS4809',
-  4134:'China Telecom 163 / AS4134',58453:'China Mobile International AS58453',
-  58807:'China Mobile International AS58807',9808:'China Mobile AS9808'
+  9929:'联通精品网 AS9929',4837:'联通 169 骨干 AS4837',
+  10099:'联通国际 CUG AS10099',4809:'电信 CN2 AS4809',
+  4134:'电信 163 骨干 AS4134',58453:'移动国际 CMI AS58453',
+  58807:'移动国际 CMI AS58807',9808:'中国移动 CMNET AS9808',
+  174:'Cogent 国际骨干 AS174',1299:'Arelion 国际骨干 AS1299',2914:'NTT 国际骨干 AS2914',3257:'GTT 国际骨干 AS3257',3356:'Lumen 国际骨干 AS3356',6453:'TATA 国际骨干 AS6453'
 });
 export class DiagnosticError extends Error {
   constructor(code, status=400) { super(code); this.code=code; this.status=status; }
@@ -58,8 +59,12 @@ export function classifyRoute(route) {
       if(ASN_LABELS[asn]&&!seen.has(asn)) {seen.add(asn);evidence.push({asn,label:ASN_LABELS[asn],ttl:hop.ttl,ip:hop.ip});}
     }
   }
-  return {labels:evidence.map(e=>e.label),evidence,as_path:sequence,confidence:evidence.length?'observed':'unknown',
-    caveat:'Observed hops only. Hidden hops and asymmetric paths prevent complete service-tier identification; CN2 does not prove GIA/GT.'};
+  const segments=sequence.map(asn=>({asn,label:ASN_LABELS[asn]||('AS'+asn),known:!!ASN_LABELS[asn]})).slice(0,24);
+  const readable=segments.filter(x=>x.known).map(x=>x.label);
+  return {labels:evidence.map(e=>e.label),evidence,as_path:sequence,segments,
+    summary:readable.length?readable.slice(0,5).join(' → '):'暂未识别骨干线路',
+    confidence:evidence.length?'observed':'unknown',
+    caveat:'仅按实际响应跳点识别经过的运营商骨干，不代表全路径。隐藏跳点/不对称路由可能改变结果；AS4809 不能直接证明 CN2 GIA。'};
 }
 export async function fingerprint(value) {
   const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(value)));
@@ -97,6 +102,47 @@ export function normalizeIpapi(raw,ip,now=Date.now()) {
     flags:{proxy:tri(raw.is_proxy),vpn:tri(raw.is_vpn),tor:tri(raw.is_tor),hosting:tri(raw.is_datacenter),abuser:tri(raw.is_abuser)},
     source:'https://ipapi.is/developers.html',score_note:'Network abuse ratio is not a per-IP risk score. Response fields vary by provider tier. Missing flags remain unknown.'};
 }
+
+export function normalizeIpwho(raw,ip,now=Date.now()){
+  if(!raw||raw.success!==true||raw.ip!==ip)throw new DiagnosticError('provider_invalid_response',502);
+  const connection=raw.connection&&typeof raw.connection==='object'?raw.connection:{};
+  const asn=finite(connection.asn,1,4294967295);
+  return{provider:'ipwho.is',status:'ok',coverage:'basic',checked_at:now,ip,
+    asn:asn===null?null:'AS'+asn,operator:text(connection.org||connection.isp,160)||null,
+    network_type:null,country:text(raw.country,80)||null,country_code:text(raw.country_code,8)||null,
+    region:text(raw.region,80)||null,city:text(raw.city,80)||null,risk:null,
+    flags:{proxy:null,vpn:null,tor:null,hosting:null,abuser:null},
+    source:'https://ipwho.is/',score_note:'仅提供 ASN/归属地；不提供代理或风险检测。'};
+}
+export function normalizeIpinfo(raw,ip,now=Date.now()){
+  if(!raw||raw.ip!==ip||raw.error)throw new DiagnosticError('provider_invalid_response',502);
+  const org=text(raw.org,160),match=org.match(/^AS(\d+)\s*(.*)$/i);
+  return{provider:'IPinfo',status:'ok',coverage:'basic',checked_at:now,ip,
+    asn:match?'AS'+match[1]:null,operator:(match?match[2]:org)||null,
+    network_type:null,country:null,country_code:text(raw.country,8)||null,
+    region:text(raw.region,80)||null,city:text(raw.city,80)||null,risk:null,
+    flags:{proxy:null,vpn:null,tor:null,hosting:null,abuser:null},
+    source:'https://ipinfo.io/',score_note:'免费版仅为 ASN/归属地信息，不能作为 IP 纯净度结论。'};
+}
+export function qualityEvidence(providers){
+  const usable=(Array.isArray(providers)?providers:[]).filter(p=>p?.status==='ok');
+  const fields=['proxy','vpn','tor','hosting','abuser'];
+  const flags={};
+  for(const key of fields){
+    const votes=usable.filter(p=>typeof p.flags?.[key]==='boolean').map(p=>({source:p.provider,value:p.flags[key]}));
+    flags[key]={status:!votes.length?'unknown':votes.some(v=>v.value)&&votes.some(v=>!v.value)?'disputed':votes[0].value?'flagged':'not_flagged',
+      sources: votes};
+  }
+  const agreement=field=>{
+    const set=[...new Set(usable.map(p=>field==='country'?text(p.country_code,8).toUpperCase():text(p.asn,40)).filter(Boolean))];
+    return !set.length?'unknown':set.length>1?'disputed':'consistent';
+  };
+  return{sources_checked:usable.length,sources_total:Array.isArray(providers)?providers.length:0,flags,
+    asn_agreement:agreement('asn'),country_agreement:agreement('country'),
+    scores:usable.flatMap(p=>typeof p.risk==='number'?[{source:p.provider,value:p.risk,type:'provider_risk'}]:[]),
+    note:'不同源的风险评分不可直接平均；未识别不等于无风险，数据源冲突需保留。'};
+}
+
 export function validateReport(body,targets,now=Date.now()) {
   if(!body||body.schema_version!==1||!/^[-a-zA-Z0-9]{16,80}$/.test(body.run_id||''))throw new DiagnosticError('invalid_report');
   if(!Array.isArray(body.routes)||body.routes.length!==3)throw new DiagnosticError('exactly_three_routes_required');
@@ -113,16 +159,22 @@ export function validateReport(body,targets,now=Date.now()) {
       if(!Number.isInteger(h.ttl)||h.ttl<=last||h.ttl>LIMITS.maxHops)throw new DiagnosticError('invalid_hop_ttl');last=h.ttl;
       if(h.ip!==null&&h.ip!==undefined&&isIP(h.ip)!==4)throw new DiagnosticError('invalid_hop_ip');
       if(!Array.isArray(h.rtts_ms)||h.rtts_ms.length>3)throw new DiagnosticError('invalid_rtt');
+      const publicHop=publicIP(h.ip),geo=publicHop&&h.geo&&typeof h.geo==='object'?h.geo:null;
       return {ttl:h.ttl,ip:h.ip||null,rtts_ms:h.rtts_ms.map(x=>finite(x,0,30000)).filter(x=>x!==null),
-        asns:publicIP(h.ip)?asns(h.asns):[],asn_source:h.asns?.length?'RIPE RIS via RIPEstat':null,
-        annotation:text(h.annotation,24),private:h.ip?!publicIP(h.ip):false};
+        asns:publicHop?asns(h.asns):[],asn_source:publicHop&&h.asns?.length?'RIPE RIS via RIPEstat':null,
+        geo:geo?{country:text(geo.country,60)||null,region:text(geo.region,60)||null,city:text(geo.city,60)||null,
+          isp:text(geo.isp,90)||null,source:'ipwho.is'}:null,
+        annotation:text(h.annotation,24),private:h.ip?!publicHop:false};
     });
     const reached=!!r.target_ip&&hops.some(h=>h.ip===r.target_ip);
-    const tcp=r.tcp||{};const attempts=finite(tcp.attempts,0,3);const successes=finite(tcp.successes,0,3);
-    if(attempts!==null&&!Number.isInteger(attempts)||successes!==null&&!Number.isInteger(successes)||attempts!==null&&successes!==null&&successes>attempts)throw new DiagnosticError('invalid_tcp_counts');
+    const tcp=r.tcp||{};const attempts=finite(tcp.attempts,0,8);const successes=finite(tcp.successes,0,8);
+    const min=finite(tcp.min_ms,0,30000),max=finite(tcp.max_ms,0,30000),jitter=finite(tcp.jitter_ms,0,30000);
+    if(attempts!==null&&!Number.isInteger(attempts)||successes!==null&&!Number.isInteger(successes)||attempts!==null&&successes!==null&&successes>attempts||min!==null&&max!==null&&min>max)throw new DiagnosticError('invalid_tcp_counts');
     const result={key:target.key,label:target.label,host:target.host,port:target.port,target_ip:r.target_ip||null,
       method:'udp-unprivileged',status:r.status==='complete'&&!reached?'partial':r.status,reached,hops,
-      tcp:{attempts,successes,median_ms:finite(tcp.median_ms,0,30000)},error:text(r.error,100)||null,
+      tcp:{attempts,successes,median_ms:finite(tcp.median_ms,0,30000),min_ms:min,max_ms:max,jitter_ms:jitter,
+        success_pct:attempts>0&&successes!==null?Math.round(successes/attempts*1000)/10:null},
+      error:text(r.error,100)||null,
       duration_ms:finite(r.duration_ms,0,240000)};
     result.line=classifyRoute(result);return result;
   });

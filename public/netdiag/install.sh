@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# CFSM Netdiag Installer v1.0.0
+# CFSM Netdiag Installer v1.1.0
 # Installs ONLY the independent diagnostics helper; does not modify cf-probe.
 set -Eeuo pipefail
 ACTION="${1:-apply}"
 AGENT_USER="${CFSM_USER:-cfsm}"
 BASE_URL='https://monitor.nnot.de/netdiag/download'
 DEST='/opt/cfsm-netdiag'
-EXPECTED_COLLECTOR='9323002d53ad1060c4620f954b5186bca8928165e0e0e945c3be4b6c8158ee71'
+EXPECTED_COLLECTOR='10283dbf34b0f8c3f476753bedd368dc263865603a68bc8df51f8a2090bb6449'
 SERVICE='cfsm-netdiag.service'
 TIMER='cfsm-netdiag.timer'
 log(){ printf '[INFO] %s\n' "$*"; }
@@ -72,7 +72,7 @@ install -o root -g root -m 644 "$stage/collector.py" "$DEST/collector.py"
 if [[ $(readlink -f "$0") != "$DEST/install.sh" ]]; then
   install -o root -g root -m 700 "$0" "$DEST/install.sh"
 fi
-printf '%s\n' 'CFSM Netdiag Installer v1.0.0' > "$DEST/.managed"
+printf '%s\n' 'CFSM Netdiag Installer v1.1.0' > "$DEST/.managed"
 chmod 600 "$DEST/.managed"
 # Write home-directory files AS cfsm so a malicious user-owned symlink cannot cause root writes.
 usercmd mkdir -p "$UNIT_DIR" "$STATE_DIR"

@@ -20,7 +20,7 @@ import urllib.parse
 import urllib.request
 import uuid
 
-VERSION = '1.0.0'
+VERSION = '1.1.0'
 MAX_HOPS = 30
 MAX_RESPONSE = 131072
 ALLOWED = {
@@ -136,15 +136,20 @@ def resolve_v4(host):
 
 
 def tcp_sample(ip, port):
+    """Bounded NQ/TQ-inspired TCP handshake sampling; no data transfer or raw sockets."""
     times = []
-    for _ in range(3):
+    for _ in range(5):
         started = time.monotonic()
         try:
             with socket.create_connection((ip, port), timeout=2):
                 times.append(round((time.monotonic() - started) * 1000, 3))
         except OSError:
             pass
-    return {'attempts': 3, 'successes': len(times), 'median_ms': statistics.median(times) if times else None}
+    jitter = statistics.median(abs(times[i] - times[i-1]) for i in range(1, len(times))) if len(times) > 1 else None
+    return {'attempts': 5, 'successes': len(times),
+            'median_ms': statistics.median(times) if times else None,
+            'min_ms': min(times) if times else None, 'max_ms': max(times) if times else None,
+            'jitter_ms': jitter}
 
 
 def parse_trace(output):
@@ -265,6 +270,50 @@ def enrich_asns(routes, state):
     write_json(cache_path, cache)
 
 
+def enrich_geos(routes, state):
+    """Small, cached public-hop geo sample. API geolocation is indicative, not proof of route locality."""
+    cache_path = state / 'geo-cache.json'
+    now = int(time.time())
+    cache = read_json(cache_path, {})
+    cache = {k: v for k, v in cache.items()
+             if public_v4(k) and isinstance(v, dict) and isinstance(v.get('expires'), int)
+             and v['expires'] > now}
+    candidates = []
+    for route in routes:
+        public_hops = [h['ip'] for h in route['hops'] if h.get('ip') and public_v4(h['ip'])]
+        if not public_hops:
+            continue
+        # Sample near-origin, mid-path, and destination rather than bulk geolocating every hop.
+        shortlist = [public_hops[0], public_hops[len(public_hops)//2]] + public_hops[-3:]
+        for ip in shortlist:
+            if ip not in candidates:
+                candidates.append(ip)
+    missing = [ip for ip in candidates if ip not in cache][:12]
+
+    def lookup(ip):
+        try:
+            raw = json_request('https://ipwho.is/' + urllib.parse.quote(ip, safe=''), timeout=6)
+            if raw.get('success') is not True or raw.get('ip') != ip:
+                raise ValueError('geo_provider_invalid')
+            conn = raw.get('connection') if isinstance(raw.get('connection'), dict) else {}
+            geo = {key: str(raw.get(key) or '')[:60] for key in ('country','region','city')}
+            geo['isp'] = str(conn.get('isp') or conn.get('org') or '')[:90]
+            return ip, {'geo': geo, 'expires': now + 7*86400}
+        except (ValueError, TypeError, AttributeError, OSError, urllib.error.URLError):
+            return ip, {'geo': None, 'expires': now + 3600}
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        for ip, info in pool.map(lookup, missing):
+            cache[ip] = info
+    for route in routes:
+        for hop in route['hops']:
+            if hop.get('ip') in cache and isinstance(cache[hop['ip']].get('geo'), dict):
+                hop['geo'] = cache[hop['ip']]['geo']
+    if len(cache) > 512:
+        cache = dict(sorted(cache.items(),key=lambda item:item[1]['expires'],reverse=True)[:512])
+    write_json(cache_path, cache)
+
+
 def run(config_path, state_path):
     if os.geteuid() == 0:
         raise ValueError('refusing_to_run_as_root')
@@ -294,6 +343,7 @@ def run(config_path, state_path):
             report['routes'].append(result)
             log('route_finished', carrier=target['key'], status=result['status'], hops=len(result['hops']))
         enrich_asns(report['routes'], state)
+        enrich_geos(report['routes'], state)
         write_json(state / 'last-report.json', report)
         response = json_request(origin + '/api/netdiag/report', body=report, headers=headers, timeout=12)
         if not response.get('accepted'):

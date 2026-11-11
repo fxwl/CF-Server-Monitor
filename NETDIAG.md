@@ -1,13 +1,13 @@
-# Network Diagnostics 1.0.0 (local extension)
+# Network Diagnostics 1.1.0 (local extension)
 
 Additive extension for this fork of CF-Server-Monitor **2.8.7 Stable**. This is not a new upstream release.
 
 ## Scope
 
 - Authenticated, same-domain dashboard at `/netdiag`, linked from the existing home/admin/theme HTML.
-- Public IP, ASN/operator/geolocation and separate observations from proxycheck.io v3 and ipapi.is.
+- Public IP, ASN/operator/geolocation and observations from proxycheck.io and ipapi.is; metadata-only fallback providers ipwho.is and legacy IPinfo.
 - Fuzhou return-route targets only, displayed **Unicom -> Telecom -> Mobile**. The existing deployment swapped its first two metric slots; the extension reads names instead of assuming that `custom_ct` is Telecom.
-- Independent unprivileged UDP traceroute, three short TCP connection attempts per target, observed ASN evidence, path/IP/property changes, and historical snapshots.
+- Independent unprivileged UDP traceroute, five TCP handshakes per Fuzhou target (success rate, median/min/max, RTT variation), observed ASN and limited public hop geography, and historical snapshots.
 - No bandwidth downloads/uploads, speedtest, web SSH, generic command queue, automatic executable updates, or extra inbound ports.
 
 The existing Go `cf-probe`, its systemd hardening, credentials, WAF rules, normal metrics and traffic accounting are not changed. No history is cleared by this extension.
@@ -17,7 +17,7 @@ The existing Go `cf-probe`, its systemd hardening, credentials, WAF rules, norma
 1. `src/network-entry.js` wraps the existing Worker. `wrangler.toml` points to the wrapper and explicitly retains the existing D1 UUID. Existing routes, cron behavior and Durable Objects are delegated unchanged. Static assets are copied from `public/netdiag` by the existing frontend build.
 2. Each VPS must install `public/netdiag/collector.py` once. The cloud dashboard cannot trace from a VPS until that local helper has actually run and reported. A missing collector is shown as **not connected**, never as a fabricated successful trace.
 
-The wrapper adds a small navigation link and standalone diagnostic view. It does not replace the currently selected third-party theme or pretend to modify all of that theme's internal components.
+The wrapper now attaches a compact NQ/TQ-inspired IP/route panel inside existing cards of the pinned Vegas7/CFSM-Theme-AnotherLuminaPlus React theme: standard cards, compact cards and list rows. It inherits light/dark theme tokens. The standalone view remains for history but is no longer shown as a full-width homepage block. If theme markup changes, adapter selectors may need adjusting.
 
 ## Install on each existing Debian VPS
 
@@ -52,7 +52,7 @@ A completed oneshot service normally becomes `inactive (dead)` with `Result=succ
 
 ## IP information providers
 
-No paid API account is required to attempt the default lookups. Anonymous calls may be limited, denied from shared cloud egress, or return fewer fields. Failures and missing data remain explicitly unavailable/unknown. Do not infer that an unknown VPN flag means no VPN, that a hosting IP is malicious, or that a provider risk score is a compromise/account-ban probability.
+No paid API account is required to attempt the default lookups. Four independently budgeted HTTPS providers are queried: proxycheck.io and ipapi.is for the available risk/usage flags, plus ipwho.is and IPinfo for ASN/geolocation-only fallbacks. **The metadata-only sources do not provide IP risk scores, proxy or VPN detection.** Anonymous requests may be denied by shared cloud egress. Failures and missing data remain explicitly unavailable/unknown. Do not infer that an unknown VPN flag means no VPN, that a hosting IP is malicious, or that a provider risk score is a compromise/account-ban probability.
 
 Optional Worker secrets, added through Cloudflare **Variables and Secrets**, never in Git:
 
@@ -74,9 +74,9 @@ Official references:
 
 Targets are restricted to the configured Fuzhou allowlist. Remote configuration cannot specify an arbitrary host, port or shell command. Resolved destinations must be public IPv4 addresses. IPv6 route collection is not part of this version.
 
-The helper uses classic **UDP** traceroute with numeric output, 30-hop maximum, one probe per TTL, at most three parallel probes, and a 45-second per-route process timeout. It never uses `sudo`, TCP raw mode, root fallback, `setcap`, or `shell=True`. Each target also receives three ordinary TCP connect attempts (no application payload). TCP and UDP may follow different paths.
+The helper uses classic **UDP** traceroute with numeric output, 30-hop maximum, one probe per TTL, at most three parallel probes, and a 45-second per-route process timeout. It never uses `sudo`, TCP raw mode, root fallback, `setcap`, or `shell=True`. Each target also receives five ordinary TCP connect attempts (no application payload). Variation between successive successful handshakes is reported as RTT variation, not true RTP jitter or a packet-loss estimate. TCP and UDP may follow different paths.
 
-Public hop addresses are mapped to announcing ASNs using RIPE RIS via RIPEstat. Private hops are never sent to the enrichment service. Results are cached locally for seven days, queries are limited to 48 new public hop IPs per collection and four concurrent requests. Failed lookups are cached for one hour and remain unknown.
+Public hop addresses are mapped to announcing ASNs using RIPE RIS via RIPEstat. Private hops are never sent to the enrichment service. Results are cached locally for seven days, queries are limited to 48 new public hop IPs per collection and four concurrent requests. Up to 12 distinct public hops per collection are also queried against ipwho.is for indicative country/region/city and ISP data (two concurrent connections, seven-day positive cache); private hops are never sent. Failed lookups are cached for one hour and remain unknown.
 
 Observed AS9929 / AS4837 / AS10099 / AS4809 / AS4134 / AS58453 / AS58807 / AS9808 produce evidence labels. A silent hop is not end-to-end packet loss. Hidden hops, load balancing and asymmetric routing prevent complete path or service-tier guarantees. In particular, AS4809 does not prove CN2 GIA/GT. Partial-path changes are marked separately from complete observed changes.
 
@@ -115,3 +115,9 @@ Tests exercise the actual module with an isolated SQLite D1 adapter; they never 
 Remove only the helper with the command above. To roll back the cloud code, deploy the recorded pre-extension Worker version or restore the prior `wrangler.toml` entrypoint (`src/index.js`) and redeploy. Existing monitoring remains independent. New diagnostic tables can be left unused; do not drop the original history tables.
 
 The backup branch is `backup/pre-netdiag-20261111-68c1258`. Review upstream merges: do not force-reset your customized `main` branch to upstream, or the extension will be removed. The existing upstream-sync workflow has not been changed.
+
+## Referenced approaches and rollout
+
+The integration borrows **ideas, not code**, from NodeQuality, xykt/IPQuality, xykt/NetQuality and TcpQuality. Their AGPL/GPL licensing remains independent. The server-side extension retains a three-target Fuzhou allowlist, non-root collector, strict caching and no throughput tests. Reported ASN and geographic location describe observed evidence, not guaranteed physical routes. 
+
+Build tests do not prove production deployment. Earlier live releases have hit Cloudflare error 10021 while generating the existing D1 binding; do not delete or recreate the production database to work around that error. After a verified successful Worker deploy, re-run the pinned installer on each VPS to get the revised collection fields. 

@@ -1,4 +1,4 @@
-import {VERSION,ORDER,LIMITS,DiagnosticError,publicIP,text,selectedTargets,validateReport,routeChanges,normalizeProxycheck,normalizeIpapi,limitedJson,secretEqual,fingerprint} from './core.js';
+import {VERSION,ORDER,LIMITS,DiagnosticError,publicIP,text,selectedTargets,validateReport,routeChanges,normalizeProxycheck,normalizeIpapi,normalizeIpwho,normalizeIpinfo,qualityEvidence,limitedJson,secretEqual,fingerprint} from './core.js';
 
 export const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS netdiag_runs (id TEXT PRIMARY KEY,server_id TEXT NOT NULL,kind TEXT NOT NULL CHECK(kind IN ('quality','route')),created_at INTEGER NOT NULL,ip TEXT,status TEXT NOT NULL,payload TEXT NOT NULL)`,
@@ -46,29 +46,31 @@ async function providerJSON(url,options={},fetcher=fetch) {
   }catch(e){if(e instanceof DiagnosticError)throw e;throw new DiagnosticError(e?.name==='AbortError'?'provider_timeout':'provider_unavailable',502);}
   finally{clearTimeout(timer);}
 }
-export async function lookupQuality(env,ip,fetcher=fetch,now=Date.now()) {
+export async function lookupQuality(env,ip,fetcher=fetch,now=Date.now()){
   if(!publicIP(ip))throw new DiagnosticError('public_ip_required');
-  const providers=await Promise.all([
-    (async()=>{
-      try{
-        if(!await reserveBudget(env.DB,'proxycheck.io',env.NETDIAG_PROXYCHECK_KEY?900:80,now))throw new DiagnosticError('daily_budget_exhausted');
-        const key=env.NETDIAG_PROXYCHECK_KEY?`&key=${encodeURIComponent(env.NETDIAG_PROXYCHECK_KEY)}`:'';
-        const raw=await providerJSON(`https://proxycheck.io/v3/${encodeURIComponent(ip)}?ver=24-June-2026&tag=0${key}`,{},fetcher);
-        return normalizeProxycheck(raw,ip,now);
-      }catch(e){return{provider:'proxycheck.io',status:'unavailable',checked_at:now,error:e.code||'provider_unavailable'};}
-    })(),
-    (async()=>{
-      try{
-        if(!await reserveBudget(env.DB,'ipapi.is',env.NETDIAG_IPAPI_KEY?900:20,now))throw new DiagnosticError('daily_budget_exhausted');
-        const opts=env.NETDIAG_IPAPI_KEY?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q:ip,key:env.NETDIAG_IPAPI_KEY})}:{};
-        const url=env.NETDIAG_IPAPI_KEY?'https://api.ipapi.is/':`https://api.ipapi.is/?q=${encodeURIComponent(ip)}`;
-        return normalizeIpapi(await providerJSON(url,opts,fetcher),ip,now);
-      }catch(e){return{provider:'ipapi.is',status:'unavailable',checked_at:now,error:e.code||'provider_unavailable'};}
-    })()
-  ]);
+  const jobs=[
+    ['proxycheck.io',env.NETDIAG_PROXYCHECK_KEY?900:80,async()=>{
+      const key=env.NETDIAG_PROXYCHECK_KEY?`&key=${encodeURIComponent(env.NETDIAG_PROXYCHECK_KEY)}`:'';
+      return normalizeProxycheck(await providerJSON(`https://proxycheck.io/v3/${encodeURIComponent(ip)}?ver=24-June-2026&tag=0${key}`,{},fetcher),ip,now);
+    }],
+    ['ipapi.is',env.NETDIAG_IPAPI_KEY?900:20,async()=>{
+      const options=env.NETDIAG_IPAPI_KEY?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q:ip,key:env.NETDIAG_IPAPI_KEY})}:{};
+      const url=env.NETDIAG_IPAPI_KEY?'https://api.ipapi.is/':`https://api.ipapi.is/?q=${encodeURIComponent(ip)}`;
+      return normalizeIpapi(await providerJSON(url,options,fetcher),ip,now);
+    }],
+    ['ipwho.is',40,async()=>normalizeIpwho(await providerJSON(`https://ipwho.is/${encodeURIComponent(ip)}`,{},fetcher),ip,now)],
+    ['IPinfo',40,async()=>normalizeIpinfo(await providerJSON(`https://ipinfo.io/${encodeURIComponent(ip)}/json`,{},fetcher),ip,now)]
+  ];
+  const providers=await Promise.all(jobs.map(async ([name,budget,check])=>{
+    try{
+      if(!await reserveBudget(env.DB,name,budget,now))throw new DiagnosticError('daily_budget_exhausted');
+      return await check();
+    }catch(e){return{provider:name,status:'unavailable',checked_at:now,error:e.code||'provider_unavailable'};}
+  }));
   const available=providers.filter(p=>p.status==='ok');
-  return {ip,providers,status:available.length===providers.length?'complete':available.length?'partial':'unavailable',checked_at:now,
-    notice:'Provider observations may disagree; absence of a flag is unknown, never a clean verdict. Hosting is not synonymous with malicious.'};
+  return{ip,providers,status:available.length===providers.length?'complete':available.length?'partial':'unavailable',checked_at:now,
+    evidence:qualityEvidence(providers),
+    notice:'Risk providers and geo/ASN-only sources are independent. Missing or failed risk providers do not imply clean IP.'};
 }
 async function saveRun(db,id,serverId,kind,payload,now,ip) {
   await db.batch([
@@ -146,7 +148,7 @@ export function summarizeHomeServer(server, ipInfo, quality, route, now = Date.n
   const currentIp = ipInfo?.ip || null;
   const stale = record => Boolean(record) && (record.ip !== currentIp || now - record.created_at > 26 * 3600000);
   const sources = Array.isArray(quality?.providers) ? quality.providers : [];
-  const providers = sources.slice(0, 3).map(source => ({
+  const providers = sources.slice(0, 6).map(source => ({
     provider: text(source.provider, 40),
     status: source.status === 'ok' ? 'ok' : 'unavailable',
     asn: text(source.asn, 60) || null,
@@ -166,7 +168,11 @@ export function summarizeHomeServer(server, ipInfo, quality, route, now = Date.n
       status: entry?.status || 'pending',
       median_ms: typeof ms === 'number' && Number.isFinite(ms) && ms >= 0 ? ms : null,
       reached: entry?.reached === true,
-      lines: (Array.isArray(entry?.line?.labels) ? entry.line.labels : []).slice(0, 4).map(label => text(label, 80)),
+      lines: (Array.isArray(entry?.line?.labels) ? entry.line.labels : []).slice(0, 6).map(label => text(label, 80)),
+      summary: text(entry?.line?.summary, 350) || '暂未识别骨干线路',
+      segments: (Array.isArray(entry?.line?.segments)?entry.line.segments:[]).slice(0,12).map(x=>({asn:x.asn,label:text(x.label,80),known:!!x.known})),
+      visible_hops: (entry?.hops||[]).filter(h=>publicIP(h.ip)).slice(0,30).map(h=>({ttl:h.ttl,ip:h.ip,asns:h.asns||[],
+        geo:h.geo?{country:text(h.geo.country,40),region:text(h.geo.region,40),city:text(h.geo.city,40),isp:text(h.geo.isp,70)}:null})),
       confidence: entry?.line?.confidence === 'observed' ? 'observed' : 'unknown',
       change: text(route?.changes?.find(item => item.key === key)?.status, 40) || null
     };

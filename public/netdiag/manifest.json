@@ -1,11 +1,17 @@
 {
-  "version": "1.0.0",
-  "collector_sha256": "9323002d53ad1060c4620f954b5186bca8928165e0e0e945c3be4b6c8158ee71",
-  "install_sha256": "66775aeb5b46e04ee3a10e445d1d2e13b9f2e3af28d4be806f165033e204d4b8",
+  "version": "1.1.0",
+  "collector_sha256": "10283dbf34b0f8c3f476753bedd368dc263865603a68bc8df51f8a2090bb6449",
+  "install_sha256": "0591748cfff7f69f410d50f12f48a72c7eb324cb2ab7223d3bbad2fa3be61237",
   "runtime": "python3-standard-library",
   "targets": [
     "cu",
     "ct",
     "cm"
-  ]
+  ],
+  "features": {
+    "five_tcp_handshakes": true,
+    "jitter": true,
+    "public_hop_geo_sample": true,
+    "max_geo_requests_per_run": 12
+  }
 }
