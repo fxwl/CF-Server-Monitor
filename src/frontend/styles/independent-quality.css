@@ -81,3 +81,14 @@
 .iq-plot svg{height:120px}
 }
 @media(max-width:340px){.iq-compact-grid,.iq-fluid,.iq-latest,.iq-facts{grid-template-columns:minmax(0,1fr)}}
+
+
+.iq-settings-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.iq-settings-actions button{border:1px solid var(--border-color);border-radius:4px;background:var(--bg-hover);padding:7px 12px;color:var(--text-primary);cursor:pointer}
+.iq-settings-actions button:hover{border-color:var(--accent-blue)}
+.iq-settings-actions button:disabled{opacity:.5;cursor:not-allowed}
+.iq-settings-message{color:var(--accent-green);margin-top:9px}
+.iq-settings-tip{margin-top:10px;color:var(--text-secondary);font-size:11px}
+.iq-settings-command{margin-top:7px;background:var(--bg-hover);padding:10px;overflow-wrap:anywhere;font-size:11px}
+.iq-settings-command code{white-space:normal;overflow-wrap:anywhere}
+.iq-facts select,.iq-facts input[type=number]{max-width:200px;background:var(--input-bg);border:1px solid var(--border-color);padding:4px;color:var(--text-primary)}
