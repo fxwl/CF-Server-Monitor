@@ -5,6 +5,7 @@ Runs as isolated cfsm-quality user. Never changes the live metrics probe.
 import datetime
 import fcntl
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -36,6 +37,12 @@ VENDOR_BLOBS={
 IPV4_COMPAT=r'''get_ipv4(){
 IPV4=""
 local endpoint response
+# Prefer Cloudflare's authenticated observation of this probe's actual egress.
+# This avoids inaccessible overseas public-IP endpoints on domestic VPSes.
+if [[ ${CFSM_EGRESS_IPV4:-} =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]];then
+IPV4="$CFSM_EGRESS_IPV4"
+return 0
+fi
 # Determine the egress address as seen by Cloudflare (the report destination).
 # Unlike the original scripts, never use protocol-less HTTP URLs.
 response=$(curl $CurlARG -4 -fsSL --noproxy '*' --connect-timeout 4 --max-time 8 'https://www.cloudflare.com/cdn-cgi/trace' 2>/dev/null) || response=""
@@ -62,6 +69,14 @@ fi
 done
 }
 '''
+
+def verified_source_ipv4(value):
+    try:
+        # Accept only globally routed IPv4 values from authenticated Worker config.
+        ip=ipaddress.IPv4Address(value)
+        return str(ip) if ip.is_global else None
+    except (ValueError,TypeError):
+        return None
 
 def vendor_runtime_script(path,kind,folder):
     if path.is_symlink() or not path.is_file() or kind not in VENDOR_BLOBS:
@@ -235,7 +250,7 @@ def routes_from_console(output):
     return [{'city':city,'carrier':carrier,'text':chr(10).join(found.get((city,carrier),[]))}
             for city in ('北京','上海','广东') for carrier in ('电信','联通','移动')]
 
-def probe(kind,server,secret,state):
+def probe(kind,server,secret,state,source_ipv4=None):
     path=BASE/('ip.sh' if kind=='ip' else 'net.sh')
     if not path.exists() or path.is_symlink():raise ValueError('missing_pinned_script_'+kind)
     ts=int(time.time()*1000)
@@ -246,8 +261,13 @@ def probe(kind,server,secret,state):
     args=[BASH,str(script),'-4','-p','-f','-n','-o',str(json_file)]
     if kind=='net':args.append('-R')
     result=None
+    probe_env={**os.environ,'LANG':'C.UTF-8','LC_ALL':'C.UTF-8','TZ':'Asia/Shanghai'}
+    if source_ipv4:
+        probe_env['CFSM_EGRESS_IPV4']=source_ipv4
+    else:
+        probe_env.pop('CFSM_EGRESS_IPV4',None)
     try:
-        result=subprocess.run(args,capture_output=True,timeout=IP_TIMEOUT if kind=='ip' else NET_TIMEOUT,cwd=str(folder),env={**os.environ,'LANG':'C.UTF-8','LC_ALL':'C.UTF-8','TZ':'Asia/Shanghai'},check=False)
+        result=subprocess.run(args,capture_output=True,timeout=IP_TIMEOUT if kind=='ip' else NET_TIMEOUT,cwd=str(folder),env=probe_env,check=False)
     except subprocess.TimeoutExpired as ex:
         note('probe_timeout',kind=kind)
         result=ex
@@ -303,6 +323,10 @@ def run():
             note('already_running');return 0
         server,secret=creds()
         config=request('/api/quality/config',server,secret)
+        # Source IP is reported by the Worker only after successful bearer auth.
+        source_ipv4=verified_source_ipv4(config.get('source_ipv4'))
+        if source_ipv4: note('edge_ipv4_selected',ip=source_ipv4)
+        else: note('edge_ipv4_unavailable')
         schedule=config.get('schedule') or {}
         if schedule.get('enabled') is False:
             note('disabled');return 0
@@ -316,7 +340,7 @@ def run():
             forced=int(triggered.get(kind) or 0)>int(state.get(kind+'_request') or 0)
             due=now-int(state.get(kind) or 0)>=hours*3600000
             if not (forced or due):continue
-            if probe(kind,server,secret,state):
+            if probe(kind,server,secret,state,source_ipv4):
                 if forced:state[kind+'_request']=int(triggered[kind])
                 write_state(state)
             else:failed=True

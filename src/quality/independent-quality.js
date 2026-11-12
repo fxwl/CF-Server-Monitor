@@ -159,8 +159,11 @@ export async function handleIndependentQuality(request,env,loadSettings,checkAut
     const now=Date.now();
     if(path==='/api/quality/report' && request.method==='POST')return json(await qualityUpload(request,env));
     if(path==='/api/quality/config' && request.method==='GET'){
-      const {id}=await agentAuth(request,env);await ensureQualityTables(env.DB);
-      return json({schema_version:1,schedule:await qualitySchedule(env.DB,id),now});
+      const {id,source}=await agentAuth(request,env);await ensureQualityTables(env.DB);
+      // Trusted Cloudflare ingress IP, not a client-supplied header. Avoid
+      // depending on overseas IP-check services for domestic VPS probes.
+      return json({schema_version:1,schedule:await qualitySchedule(env.DB,id),now,
+        source_ipv4:source && isIP(source)===4 ? source : null});
     }
     if(!['GET','POST'].includes(request.method))throw new QualityError('method_not_allowed',405);
     const settings=await loadSettings(env.DB),admin=await checkAuth(request,env,settings);
