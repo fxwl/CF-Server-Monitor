@@ -49,11 +49,11 @@ class UpstreamIPv4Tests(unittest.TestCase):
         self._exercise_bash('ip=redirect','HTTP/1.1 301 Moved Permanently','')
 
     def test_worker_observed_ipv4_does_not_require_external_services(self):
-        self._exercise_bash('error=blocked','HTTP/1.1 403','123.249.124.176',
-                            egress_ipv4='123.249.124.176')
+        self._exercise_bash('error=blocked','HTTP/1.1 403','1.1.1.1',
+                            egress_ipv4='1.1.1.1')
 
     def test_worker_source_ipv4_must_be_globally_routed(self):
-        self.assertEqual(collector.verified_source_ipv4('123.249.124.176'),'123.249.124.176')
+        self.assertEqual(collector.verified_source_ipv4('1.1.1.1'),'1.1.1.1')
         for addr in ('10.0.0.1','127.0.0.1','192.168.1.1','2001:db8::1','123.249.124.999',None):
             self.assertIsNone(collector.verified_source_ipv4(addr))
 
