@@ -11,6 +11,7 @@
           <OsIcon :os="server.os" />
         </span>
         <span class="server-name">{{ server.name }}</span>
+          <small v-if="quality?.ip" class="iq-server-ip">{{ quality.ip }}</small>
       </div>
       <span class="status-label" :style="{ color: statusColor, borderColor: statusColor }">{{ statusText }}</span>
     </div>
