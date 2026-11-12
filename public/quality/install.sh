@@ -49,7 +49,7 @@ python3 -m py_compile /opt/cfsm-quality/collector.py.new
 install -m 0755 -o root -g root /opt/cfsm-quality/collector.py.new /opt/cfsm-quality/collector.py
 rm -f /opt/cfsm-quality/collector.py.new
 
-cat >/etc/systemd/system/cfsm-quality.service <<'SERVICE'
+cat >/etc/systemd/system/cfsm-quality.service <<SERVICE
 [Unit]
 Description=CFSM independent IP and network quality collector
 After=network-online.target
@@ -58,7 +58,7 @@ Wants=network-online.target
 Type=oneshot
 User=cfsm
 Group=cfsm
-Environment=HOME=/home/cfsm
+Environment=HOME=$HOME_CFSM
 WorkingDirectory=/var/lib/cfsm-quality
 ExecStart=/usr/bin/python3 /opt/cfsm-quality/collector.py
 TimeoutStartSec=3h
@@ -67,7 +67,8 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=/var/lib/cfsm-quality
-CapabilityBoundingSet=
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
 RestrictSUIDSGID=true
 LockPersonality=true
 UMask=0077
