@@ -78,6 +78,18 @@
         </details>
       </div>
       <div v-if="net.route_text && !routeCards.some(r=>r.text)" class="iq-route-raw"><pre>{{ net.route_text }}</pre></div>
+      <template v-if="provinceLatency.length">
+        <h3>省级三网延迟</h3>
+        <div class="iq-fluid"><div v-for="(p,i) in provinceLatency" :key="i" class="iq-chip"><b>{{ p.province }} · {{ p.carrier }}</b><strong>{{ p.ms }} ms</strong></div></div>
+      </template>
+      <template v-if="speedTests.length">
+        <h3>国内测速</h3>
+        <div class="iq-fluid"><div v-for="(p,i) in speedTests" :key="i" class="iq-chip"><b>{{ p.key }}</b><span>{{ p.value }}</span></div></div>
+      </template>
+      <template v-if="transfers.length">
+        <h3>国际互联</h3>
+        <div class="iq-fluid"><div v-for="(p,i) in transfers" :key="i" class="iq-chip"><b>{{ p.key }}</b><span>{{ p.value }}</span></div></div>
+      </template>
     </section>
   </div>
 </template>
@@ -130,6 +142,10 @@ const local=computed(()=>Object.entries(nr.value.Local||{}))
 const bgpName=x=>({ASN:'ASN',Organization:'机构',Prefix:'前缀长度',RIR:'注册机构',RegDate:'注册时间',ModDate:'修改时间',Country:'国家',SubRegion:'区域',Region:'大洲',IPinTotal:'IP 总数',IPActive:'活跃 IP',NeighborinTotal:'邻居总数',NeighborActive:'活跃邻居',IXCount:'IX 数量',UpstreamsCount:'上游数量',PeersCount:'对等数量',Address:'地址',GeoFeed:'GeoFeed'}[x]||x)
 const localName=x=>({NAT:'NAT 类型',NATDescribe:'NAT 说明',Mapping:'映射',Filter:'过滤',Port:'端口',Hairpin:'回环',TCPCongestionControl:'TCP 拥塞控制',QueueDiscipline:'队列调度',TCPReceiveBuffer:'TCP 接收缓冲区',TCPSendBuffer:'TCP 发送缓冲区'}[x]||x)
 const connections=computed(()=>Array.isArray(nr.value.Connectivity)?nr.value.Connectivity:[])
+const provinceLatency=computed(()=>(Array.isArray(nr.value.Delay)?nr.value.Delay:[]).flatMap(r=>['CT','CU','CM'].map(carrier=>({province:r.Name||r.Code||'—',carrier,ms:r[carrier]?.Average}))).filter(r=>r.ms!==undefined&&r.ms!==null&&r.ms!==''&&r.ms!=='null'&&Number.isFinite(Number(r.ms))))
+const relevantEntries=source=>(Array.isArray(source)?source:[]).flatMap((row,index)=>Object.entries(row&&typeof row==='object'?row:{}).filter(([,v])=>v!==null&&v!==''&&v!=='null').map(([key,v])=>({key:(index+1)+' · '+key,value:typeof v==='object'?JSON.stringify(v):String(v)})))
+const speedTests=computed(()=>relevantEntries(nr.value.Speedtest))
+const transfers=computed(()=>relevantEntries(nr.value.Transfer))
 const routeCards=computed(()=>{
  const provided=Array.isArray(net.value?.routes)?net.value.routes:[]
  if(provided.length)return provided
