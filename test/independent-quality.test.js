@@ -33,6 +33,10 @@ test('unexpected kind and outdated times rejected',()=>{
  assert.throws(()=>validateDiagnosticReport({...ipReport(),kind:'nq'},null,now),/invalid_report/);
  assert.throws(()=>validateDiagnosticReport({...ipReport(),started_at:now-20*86400000},null,now),/invalid_timestamp/);
 });
+test('domestic source country is retained without allowing arbitrary values',()=>{
+  assert.equal(validateDiagnosticReport({...ipReport(),source_country:'CN'},null,now).source_country,'CN');
+  assert.equal(validateDiagnosticReport({...ipReport(),source_country:'CN\nHeader: injected'},null,now).source_country,null);
+});
 test('malformed shell data rejected',()=>{
  assert.throws(()=>validateDiagnosticReport({...netReport(),report:{Head:{IP:'203.0.113.18'}}},null,now),/invalid_net_quality/);
 });
@@ -52,15 +56,18 @@ test('authenticated quality config returns Cloudflare-observed IPv4',async()=>{
   const headers={
     'Authorization':'Bearer quality-test-secret-123456789',
     'X-CFSM-Server-ID':id,
-    'CF-Connecting-IP':'123.249.124.176'
+    'CF-Connecting-IP':'1.1.1.1'
   };
-  const r=await handleIndependentQuality(new Request(url,{headers}),env,
+  const request=new Request(url,{headers});
+  Object.defineProperty(request,'cf',{value:{country:'CN'}});
+  const r=await handleIndependentQuality(request,env,
     async()=>{throw Error('unexpected config settings query')},
     async()=>{throw Error('unexpected admin auth')});
   assert.equal(r.status,200);
   const data=await r.json();
   assert.equal(data.schema_version,1);
-  assert.equal(data.source_ipv4,'123.249.124.176');
+  assert.equal(data.source_ipv4,'1.1.1.1');
+  assert.equal(data.source_country,'CN');
   assert.equal(data.schedule.enabled,true);
 });
 test('quality config excludes IPv6 and does not expose source without valid auth',async()=>{

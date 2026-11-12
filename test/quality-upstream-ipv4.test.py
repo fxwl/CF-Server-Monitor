@@ -49,11 +49,11 @@ class UpstreamIPv4Tests(unittest.TestCase):
         self._exercise_bash('ip=redirect','HTTP/1.1 301 Moved Permanently','')
 
     def test_worker_observed_ipv4_does_not_require_external_services(self):
-        self._exercise_bash('error=blocked','HTTP/1.1 403','123.249.124.176',
-                            egress_ipv4='123.249.124.176')
+        self._exercise_bash('error=blocked','HTTP/1.1 403','1.1.1.1',
+                            egress_ipv4='1.1.1.1')
 
     def test_worker_source_ipv4_must_be_globally_routed(self):
-        self.assertEqual(collector.verified_source_ipv4('123.249.124.176'),'123.249.124.176')
+        self.assertEqual(collector.verified_source_ipv4('1.1.1.1'),'1.1.1.1')
         for addr in ('10.0.0.1','127.0.0.1','192.168.1.1','2001:db8::1','123.249.124.999',None):
             self.assertIsNone(collector.verified_source_ipv4(addr))
 
@@ -75,6 +75,33 @@ class UpstreamIPv4Tests(unittest.TestCase):
             self.assertEqual(generated.stat().st_mode & 0o777,0o700)
             p=subprocess.run(['/bin/bash','-n',str(generated)],capture_output=True,text=True)
             self.assertEqual(p.returncode,0,p.stderr)
+
+    def test_netquality_runtime_copy_uses_bounded_retries_and_fallback(self):
+        pinned=BASE/'public'/'quality'/'vendor'/'net.sh'
+        with tempfile.TemporaryDirectory() as root:
+            original=pinned.read_bytes()
+            patched=collector.vendor_runtime_script(pinned,'net',Path(root)).read_text()
+            self.assertEqual(pinned.read_bytes(),original)
+            self.assertIn('local max_retries=2',patched)
+            self.assertIn('cfsm_route_fallback "$domain" "$rnum" "$rmode"',patched)
+            self.assertIn('timeout 35s traceroute',patched)
+            syntax=Path(root)/'net-runtime.sh'
+            syntax.write_text(patched)
+            p=subprocess.run(['/bin/bash','-n',str(syntax)],capture_output=True,text=True)
+            self.assertEqual(p.returncode,0,p.stderr)
+
+    def test_ip_only_fallback_has_real_hops_not_invented_asn_geo(self):
+        with tempfile.TemporaryDirectory() as root:
+            bindir=Path(root)
+            tool=bindir/'traceroute'
+            tool.write_text('#!/bin/sh\nprintf "traceroute to test\\n1 192.0.2.1 1.2 ms\\n2 198.51.100.2 22.3 ms\\n"\n')
+            tool.chmod(0o755)
+            env={**os.environ,'PATH':str(bindir)+':'+os.environ.get('PATH','')}
+            code=collector.NET_ROUTE_FALLBACK+'\ncfsm_route_fallback test.example 2 1\n'
+            proc=subprocess.run(['/bin/bash','-c',code],capture_output=True,text=True,env=env,timeout=8)
+            self.assertEqual(proc.returncode,0,proc.stderr)
+            self.assertIn('|2|1|1.2ms|192.0.2.1|-|-|-|',proc.stdout)
+            self.assertIn('|2|2|22.3ms|198.51.100.2|-|-|-|',proc.stdout)
 
     def test_vendor_checksum_mismatch_fails_closed(self):
         with tempfile.TemporaryDirectory() as root:

@@ -78,6 +78,43 @@ def verified_source_ipv4(value):
     except (ValueError,TypeError):
         return None
 
+NET_ROUTE_FALLBACK=r'''cfsm_route_fallback(){
+local domain="$1" rnum="$2" rmode="$3" flag="-T"
+command -v traceroute >/dev/null 2>&1 || return 0
+[[ "$rmode" == "2" ]]&&flag="-U"
+# IP-only fallback: don't invent missing ASN or geolocation metadata.
+timeout 35s traceroute -n "$flag" -p 80 -q 1 -m 20 -w 1 "$domain" 2>/dev/null |
+awk -v rnum="$rnum" '
+  NR>1 && $1 ~ /^[0-9]+$/ {
+    hop=$1; ip=$2; ms="-"
+    n=split(ip,octets,".")
+    if(n!=4 || ip ~ /[^0-9.]/)next
+    for(i=3;i<NF;i++)if($(i+1)=="ms"){ms=$i "ms";break}
+    printf "|%s|%s|%s|%s|-|-|-|\n",rnum,hop,ms,ip
+  }'
+}
+'''
+
+def adapt_net_routes(text):
+    # The full pinned script has a self-contained nexttrace_route function.
+    # Limit retry amplification and fall back to system traceroute where
+    # NextTrace is unavailable or cannot reach its route service from China.
+    match=re.search(r'(?ms)^nexttrace_route\(\)\{\n.*?^\}\n',text)
+    if not match:raise ValueError('upstream_net_route_signature_changed')
+    old=match.group(0)
+    if old.count('local max_retries=10')!=1 or old.count('local retry_delay=5')!=1:
+        raise ValueError('upstream_net_route_signature_changed')
+    changed=old.replace('local max_retries=10','local max_retries=2',1)
+    changed=changed.replace('local retry_delay=5','local retry_delay=2',1)
+    marker='output=$(echo "$output"|sed '
+    if changed.count(marker)!=1:raise ValueError('upstream_net_route_signature_changed')
+    changed=changed.replace(marker,
+        'if [[ $output != *"traceroute to"* ]];then\n'
+        'cfsm_route_fallback "$domain" "$rnum" "$rmode"\n'
+        'return 0\n'
+        'fi\n'+marker,1)
+    return text[:match.start()]+NET_ROUTE_FALLBACK+changed+text[match.end():]
+
 def vendor_runtime_script(path,kind,folder):
     if path.is_symlink() or not path.is_file() or kind not in VENDOR_BLOBS:
         raise ValueError('missing_pinned_script_'+kind)
@@ -92,6 +129,7 @@ def vendor_runtime_script(path,kind,folder):
         raise ValueError('upstream_ipv4_signature_changed_'+kind)
     patched,count=re.subn(pattern,lambda _:IPV4_COMPAT,text,count=1)
     if count!=1:raise ValueError('upstream_ipv4_patch_failed_'+kind)
+    if kind=='net':patched=adapt_net_routes(patched)
     script=folder/(kind+'-runtime.sh')
     script.write_text(patched,encoding='utf-8')
     script.chmod(0o700)
@@ -250,7 +288,7 @@ def routes_from_console(output):
     return [{'city':city,'carrier':carrier,'text':chr(10).join(found.get((city,carrier),[]))}
             for city in ('北京','上海','广东') for carrier in ('电信','联通','移动')]
 
-def probe(kind,server,secret,state,source_ipv4=None):
+def probe(kind,server,secret,state,source_ipv4=None,source_country=None):
     path=BASE/('ip.sh' if kind=='ip' else 'net.sh')
     if not path.exists() or path.is_symlink():raise ValueError('missing_pinned_script_'+kind)
     ts=int(time.time()*1000)
@@ -289,6 +327,7 @@ def probe(kind,server,secret,state,source_ipv4=None):
         note('invalid_probe_structure',kind=kind)
         return False
     payload={'schema_version':1,'kind':kind,'run_id':str(uuid.uuid4()),'started_at':ts,'report':report}
+    if source_country:payload['source_country']=source_country
     if kind=='net':
         payload['route_text']=output[-105000:]
         payload['routes']=routes_from_console(output)
@@ -327,6 +366,9 @@ def run():
         source_ipv4=verified_source_ipv4(config.get('source_ipv4'))
         if source_ipv4: note('edge_ipv4_selected',ip=source_ipv4)
         else: note('edge_ipv4_unavailable')
+        country=config.get('source_country')
+        source_country=country if isinstance(country,str) and re.fullmatch(r'[A-Z]{2}',country) else None
+        if source_country:note('edge_country',value=source_country)
         schedule=config.get('schedule') or {}
         if schedule.get('enabled') is False:
             note('disabled');return 0
@@ -337,13 +379,33 @@ def run():
         for kind in ('ip','net'):
             hours=schedule.get(kind+'_hours',168)
             if not isinstance(hours,int) or not 1<=hours<=720:hours=168
-            forced=int(triggered.get(kind) or 0)>int(state.get(kind+'_request') or 0)
+            request_id=int(triggered.get(kind) or 0)
+            forced=request_id>int(state.get(kind+'_request') or 0)
             due=now-int(state.get(kind) or 0)>=hours*3600000
             if not (forced or due):continue
-            if probe(kind,server,secret,state,source_ipv4):
-                if forced:state[kind+'_request']=int(triggered[kind])
+            # Do not re-run failing international probes every 15 minutes.
+            # A fresh admin request is still allowed to override cooldown.
+            retry=state.get(kind+'_retry') or {}
+            if not isinstance(retry,dict):retry={}
+            previous_request=int(retry.get('request_id') or 0)
+            retry_until=int(retry.get('until') or 0)
+            new_force=forced and request_id>previous_request
+            if now<retry_until and not new_force and os.environ.get('CFSM_QUALITY_FORCE')!='1':
+                note('probe_retry_wait',kind=kind,seconds_left=(retry_until-now+999)//1000)
+                continue
+            note('probe_start',kind=kind,forced=forced)
+            if probe(kind,server,secret,state,source_ipv4,source_country):
+                if forced:state[kind+'_request']=request_id
+                state.pop(kind+'_retry',None)
                 write_state(state)
-            else:failed=True
+            else:
+                failed=True
+                failures=min(8,max(0,int(retry.get('failures') or 0))+1)
+                retry_delay=min(3600000*(2**(failures-1)),8*3600000)
+                state[kind+'_retry']={'failures':failures,'until':int(time.time()*1000)+retry_delay,
+                                      'request_id':request_id}
+                write_state(state)
+                note('probe_retry_scheduled',kind=kind,failures=failures,retry_minutes=retry_delay//60000)
         cleanup()
         return 1 if failed else 0
 

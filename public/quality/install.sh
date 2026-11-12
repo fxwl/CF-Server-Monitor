@@ -78,32 +78,85 @@ chmod 0640 "$credential_tmp"
 mv -f "$credential_tmp" /etc/cfsm-quality/credentials.conf
 
 apt-get update -qq
-apt-get install -y -qq --no-install-recommends python3 curl jq bc dnsutils netcat-openbsd iproute2 iperf3 traceroute ca-certificates libcap2-bin
+apt-get install -y -qq --no-install-recommends python3 curl jq bc dnsutils netcat-openbsd iproute2 iperf3 traceroute mtr-tiny ca-certificates libcap2-bin
 
-# Official NextTrace Debian packages, installed only if not already available.
-if ! command -v nexttrace >/dev/null 2>&1; then
-    install -d -m 0755 /etc/apt/keyrings
-    tempkey="$(mktemp)"
-    trap 'rm -f "$tempkey"' EXIT
-    curl -4fsSL --retry 2 --connect-timeout 20 --max-time 120 \
-      'https://github.com/nxtrace/nexttrace-debs/releases/latest/download/nexttrace-archive-keyring.gpg' -o "$tempkey"
-    install -m 0644 "$tempkey" /etc/apt/keyrings/nexttrace.gpg
-    printf '%s\n' 'Types: deb' 'URIs: https://github.com/nxtrace/nexttrace-debs/releases/latest/download/' 'Suites: ./' 'Signed-By: /etc/apt/keyrings/nexttrace.gpg' > /etc/apt/sources.list.d/nexttrace.sources
-    apt-get update -qq
-    apt-get install -y -qq --no-install-recommends nexttrace
+# Optional NextTrace for route detail. On mainland networks GitHub can be
+# unreachable; missing NextTrace must not abort independent diagnostics.
+# For overseas nodes, attempt the official repository automatically; for
+# mainland nodes, prefer local traceroute and let administrators opt in.
+if [ -z "${CFSM_QUALITY_TRY_NEXTTRACE_GITHUB+x}" ]; then
+    cf_country="$(curl -4fsSL --noproxy '*' --connect-timeout 3 --max-time 8 \
+      'https://www.cloudflare.com/cdn-cgi/trace' 2>/dev/null | \
+      awk -F= '$1=="loc" {print $2; exit}' || true)"
+    if [ "$cf_country" = CN ]; then
+        CFSM_QUALITY_TRY_NEXTTRACE_GITHUB=0
+    else
+        CFSM_QUALITY_TRY_NEXTTRACE_GITHUB=1
+    fi
 fi
-# Allow non-root NextTrace to use raw packet sockets.
+if ! command -v nexttrace >/dev/null 2>&1; then
+    echo 'NextTrace missing; checking existing Debian package indexes...'
+    if apt-cache show nexttrace >/dev/null 2>&1; then
+        apt-get install -y -qq --no-install-recommends nexttrace || \
+          echo 'Warning: NextTrace install failed; detailed routes may be limited.'
+    elif [ "${CFSM_QUALITY_TRY_NEXTTRACE_GITHUB:-0}" = 1 ]; then
+        echo 'Trying optional upstream NextTrace repository.'
+        install -d -m 0755 /etc/apt/keyrings
+        tempkey="$(mktemp)"
+        if curl -4fsSL --retry 1 --connect-timeout 6 --max-time 22 \
+            'https://github.com/nxtrace/nexttrace-debs/releases/latest/download/nexttrace-archive-keyring.gpg' \
+            -o "$tempkey"; then
+            install -m 0644 "$tempkey" /etc/apt/keyrings/nexttrace.gpg
+            printf '%s\n' 'Types: deb' 'URIs: https://github.com/nxtrace/nexttrace-debs/releases/latest/download/' 'Suites: ./' 'Signed-By: /etc/apt/keyrings/nexttrace.gpg' > /etc/apt/sources.list.d/nexttrace.sources
+            if ! ( timeout 90s apt-get update -qq && \
+                   timeout 90s apt-get install -y -qq --no-install-recommends nexttrace ); then
+                rm -f /etc/apt/sources.list.d/nexttrace.sources /etc/apt/keyrings/nexttrace.gpg
+                echo 'Warning: optional NextTrace failed; removed broken source.'
+            fi
+        else
+            echo 'Warning: GitHub unreachable; skipped optional NextTrace.'
+        fi
+        rm -f "$tempkey"
+    else
+        echo 'Warning: NextTrace unavailable. Install separately for full return routes.'
+        echo 'Set CFSM_QUALITY_TRY_NEXTTRACE_GITHUB=1 to try the official GitHub repository.'
+    fi
+fi
 NEXTPATH="$(command -v nexttrace || true)"
-if [ -n "$NEXTPATH" ]; then setcap cap_net_raw,cap_net_admin+eip "$NEXTPATH" || true; fi
+if [ -n "$NEXTPATH" ]; then
+    setcap cap_net_raw+eip "$NEXTPATH" 2>/dev/null || true
+fi
 
-# Both script versions are fixed to reviewed upstream commits; never fetch 'main' dynamically.
-URL_BASE='https://raw.githubusercontent.com/xykt'
-curl -4fsSL --retry 2 --max-time 120 \
-  "$URL_BASE/IPQuality/8e685686e1df89119d9aeb182a9dedbc88da19e3/ip.sh" -o /opt/cfsm-quality/ip.sh.new
-curl -4fsSL --retry 2 --max-time 120 \
-  "$URL_BASE/NetQuality/e91cd4963c2676da0e12bcece8ccb145e04a6735/net.sh" -o /opt/cfsm-quality/net.sh.new
-bash -n /opt/cfsm-quality/ip.sh.new
-bash -n /opt/cfsm-quality/net.sh.new
+# China-friendly, fixed-version vendor sources, served from the same host.
+# Integrity verifies the exact pinned Git blob before any installation.
+git_blob_sha() {
+    local file="$1"
+    { printf 'blob %s\0' "$(stat -c %s "$file")"; cat "$file"; } | sha1sum | awk '{print $1}'
+}
+download_vendor() {
+    local name="$1" repository="$2" commit="$3" expected="$4" target="$5"
+    if ! curl -4fsSL --noproxy '*' --retry 1 --connect-timeout 8 --max-time 50 \
+        "https://monitor.nnot.de/quality/vendor/$name" -o "$target"; then
+        echo "First-party mirror unavailable for $name; trying pinned GitHub..."
+        curl -4fsSL --noproxy '*' --retry 1 --connect-timeout 8 --max-time 45 \
+            "https://raw.githubusercontent.com/xykt/$repository/$commit/$name" -o "$target"
+    fi
+    local actual
+    actual="$(git_blob_sha "$target")"
+    if [ "$actual" != "$expected" ]; then
+        printf 'Integrity mismatch for %s. Expected %s, got %s\n' "$name" "$expected" "$actual" >&2
+        exit 1
+    fi
+    bash -n "$target"
+}
+download_vendor ip.sh IPQuality \
+  8e685686e1df89119d9aeb182a9dedbc88da19e3 \
+  4dad5782d4095ed214b821951eba39353b5e0da4 \
+  /opt/cfsm-quality/ip.sh.new
+download_vendor net.sh NetQuality \
+  e91cd4963c2676da0e12bcece8ccb145e04a6735 \
+  3f53747f00e6a00fe39534280a1c1dc6b71abbad \
+  /opt/cfsm-quality/net.sh.new
 install -m 0755 -o root -g root /opt/cfsm-quality/ip.sh.new /opt/cfsm-quality/ip.sh
 install -m 0755 -o root -g root /opt/cfsm-quality/net.sh.new /opt/cfsm-quality/net.sh
 rm -f /opt/cfsm-quality/ip.sh.new /opt/cfsm-quality/net.sh.new
