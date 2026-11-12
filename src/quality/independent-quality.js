@@ -29,7 +29,9 @@ export function validateDiagnosticReport(x, sourceIp, now=Date.now()) {
   const routes = !isIp && Array.isArray(x.routes) ? x.routes.slice(0,9).map(r => ({
     city: bounded(r?.city,40), carrier: bounded(r?.carrier,40), text: bounded(r?.text,16000)
   })).filter(r => r.city && r.carrier) : [];
-  return {kind:x.kind,run_id:x.run_id,started_at:x.started_at,ip:reported,report:x.report,route_text:routeText,routes};
+  return {kind:x.kind,run_id:x.run_id,started_at:x.started_at,ip:reported,
+    source_country:typeof x.source_country==='string' && /^[A-Z]{2}$/.test(x.source_country) ? x.source_country : null,
+    report:x.report,route_text:routeText,routes};
 }
 
 export async function ensureQualityTables(db) {
@@ -162,8 +164,9 @@ export async function handleIndependentQuality(request,env,loadSettings,checkAut
       const {id,source}=await agentAuth(request,env);await ensureQualityTables(env.DB);
       // Trusted Cloudflare ingress IP, not a client-supplied header. Avoid
       // depending on overseas IP-check services for domestic VPS probes.
+      const country=typeof request.cf?.country==='string' && /^[A-Z]{2}$/.test(request.cf.country) ? request.cf.country : null;
       return json({schema_version:1,schedule:await qualitySchedule(env.DB,id),now,
-        source_ipv4:source && isIP(source)===4 ? source : null});
+        source_ipv4:source && isIP(source)===4 ? source : null,source_country:country});
     }
     if(!['GET','POST'].includes(request.method))throw new QualityError('method_not_allowed',405);
     const settings=await loadSettings(env.DB),admin=await checkAuth(request,env,settings);
