@@ -36,9 +36,15 @@ VENDOR_BLOBS={
 IPV4_COMPAT=r'''get_ipv4(){
 IPV4=""
 local endpoint response
-# The original scripts query protocol-less URLs over HTTP and may interpret
-# HTTPS redirects or error pages as a missing IPv4 address.
-# Force HTTPS, follow only HTTPS redirects and validate the response.
+# Determine the egress address as seen by Cloudflare (the report destination).
+# Unlike the original scripts, never use protocol-less HTTP URLs.
+response=$(curl $CurlARG -4 -fsSL --noproxy '*' --connect-timeout 4 --max-time 8 'https://www.cloudflare.com/cdn-cgi/trace' 2>/dev/null) || response=""
+response=$(printf '%s\n' "$response"|awk -F= '$1=="ip"{print $2;exit}'|tr -d '\r\n')
+if [[ $response =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]];then
+IPV4="$response"
+return 0
+fi
+# Fallback to validated HTTPS plaintext IP endpoints.
 local API_NET=(
   "https://api.ipify.org"
   "https://ipv4.icanhazip.com"
@@ -54,14 +60,7 @@ IPV4="$response"
 return 0
 fi
 done
-# Cloudflare trace is an additional independent HTTPS fallback.
-response=$(curl $CurlARG -4 -fsSL --noproxy '*' --connect-timeout 4 --max-time 8 'https://www.cloudflare.com/cdn-cgi/trace' 2>/dev/null) || return 0
-response=$(printf '%s\n' "$response"|awk -F= '$1=="ip"{print $2;exit}'|tr -d '\r\n')
-if [[ $response =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]];then
-IPV4="$response"
-fi
 }
-'''
 
 def vendor_runtime_script(path,kind,folder):
     if path.is_symlink() or not path.is_file() or kind not in VENDOR_BLOBS:
