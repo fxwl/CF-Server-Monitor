@@ -55,13 +55,16 @@ class RetryBackoffTests(unittest.TestCase):
                 self.assertEqual(seen,['ip','net','ip'])
 
     def test_successful_probes_clear_retry_state(self):
+        def successful_probe(kind,server,secret,state,*args):
+            state[kind]=1_000_000_000_000_000
+            return True
         with tempfile.TemporaryDirectory() as temp:
             state={'ip_retry':{'failures':4,'until':1,'request_id':0}}
             (Path(temp)/'last-run.json').write_text(json.dumps(state))
             with (patch.object(quality,'STATE',Path(temp)),
                   patch.object(quality,'creds',return_value=('0'*36,'fake-secret')),
                   patch.object(quality,'request',return_value={'schema_version':1,'schedule':{'enabled':True,'requested':{}}}),
-                  patch.object(quality,'probe',return_value=True),
+                  patch.object(quality,'probe',side_effect=successful_probe),
                   patch.dict(os.environ,{'CFSM_QUALITY_FORCE':''})):
                 self.assertEqual(quality.run(),0)
                 final=json.loads((Path(temp)/'last-run.json').read_text())
