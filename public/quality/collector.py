@@ -129,7 +129,7 @@ def probe(kind,server,secret,state):
     folder=STATE/('run-'+kind+'-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S'))
     folder.mkdir(mode=0o700)
     json_file=folder/(kind+'.json')
-    args=[BASH,str(path),'-4','-p','-f','-o',str(json_file)]
+    args=[BASH,str(path),'-4','-p','-f','-n','-o',str(json_file)]
     if kind=='net':args.append('-R')
     result=None
     try:
