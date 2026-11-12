@@ -95,6 +95,7 @@
           <span class="cmd-prompt">{{ targetOs === 'windows' ? 'PS' : '$' }}</span>
           <pre class="cmd-output">{{ installCommand }}</pre>
         </div>
+        <p v-if="targetOs === 'linux'" class="iq-settings-tip">Linux (Debian/Ubuntu) 安装命令已包含 cfsm-quality：主探针运行在 cfsm（专用用户模式），质量采集器使用 cfsm-quality；中国大陆自动跳过两项质量检测。</p>
       </div>
 
       <div class="modal-footer flex-justify-between">
