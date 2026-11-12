@@ -1,4 +1,5 @@
 import { initDatabase, weeklyCleanup, getMetricsHistory, clearHistory } from './database/schema.js';
+import { handleIndependentQuality } from './quality/independent-quality.js';
 import { checkOfflineNodes, checkExpiringServers, checkResourceAlerts } from './services/notification.js';
 import { updateDatabase } from './database/updateDatabase.js';
 import { handleAdminAPI } from './handlers/admin.js';
@@ -223,6 +224,8 @@ export default {
     const bypassTurnstilePaths = [
       '/admin/api',
       '/api/ws',
+      '/api/quality/report',
+      '/api/quality/config',
     ];
 
     const isApiRequest = path.startsWith('/api/') || path.startsWith('/admin/api');
@@ -292,6 +295,12 @@ export default {
           return createSuccessResponse({ ok: false, reason: e.message });
         }
       }},
+      { method: 'POST', path: '/api/quality/report', handler: () => handleIndependentQuality(request, env, loadSiteSettings, checkAuth) },
+      { method: 'GET', path: '/api/quality/config', handler: () => handleIndependentQuality(request, env, loadSiteSettings, checkAuth) },
+      { method: 'GET', path: '/api/quality/home', handler: () => handleIndependentQuality(request, env, loadSiteSettings, checkAuth) },
+      { method: 'GET', path: '/api/quality/detail', handler: () => handleIndependentQuality(request, env, loadSiteSettings, checkAuth) },
+      { method: 'GET', path: '/api/quality/settings', handler: () => handleIndependentQuality(request, env, loadSiteSettings, checkAuth) },
+      { method: 'POST', path: '/api/quality/settings', handler: () => handleIndependentQuality(request, env, loadSiteSettings, checkAuth) },
       { method: 'GET', path: '/api/config', handler: async () => {
         await ensureSiteSettings();
         const appearanceOptions = await loadAppearanceOptions(env.DB);
