@@ -620,6 +620,7 @@ import { copyTextToClipboard } from '../../utils/clipboard.js'
 import { normalizeLanguagePreference, normalizeNotificationLanguagePreference, t, useTranslation } from '../../utils/i18n'
 import { PING_NODE_FIELDS, validatePingNode } from '../../utils/pingNode.js'
 import { normalizeDisplayMode, resolveDisplayMode } from '../../utils/displayMode.js'
+import { attachQualitySidecar } from '../../utils/qualityInstallCommand.js'
 import { applyMikusThemeOptions } from '../../utils/themeOptions.js'
 import { FRONTEND_WS_TIMEOUT_MINUTES_MAX, HISTORY, STORAGE } from '../../utils/constants.js'
 import { usePasswordVisibility } from '../../composables/usePasswordVisibility'
@@ -1988,9 +1989,10 @@ const getCustomInstallCommand = () => {
   const installCommand = isLinux
     ? `( set -e; cfsm_script=$(mktemp); trap 'rm -f "$cfsm_script"' EXIT; curl -fsSL ${quotePosixShellArg(ghUrl)} -o "$cfsm_script"; CFSM_ASSET_BASE=${quotePosixShellArg(HOST)} sh "$cfsm_script" ${params.join(' ')} )`
     : `curl -fsSL ${quotePosixShellArg(ghUrl)} | sh -s -- ${params.join(' ')}`
-  if (!isDedicatedUserInstall) return installCommand
-
-  return buildInstallAsCfsmCommand(installCommand, trans.value.nonRootInstallRunStep)
+  const mainCommand = isDedicatedUserInstall
+    ? buildInstallAsCfsmCommand(installCommand, trans.value.nonRootInstallRunStep)
+    : installCommand
+  return attachQualitySidecar(mainCommand, { baseUrl: HOST, installMode: installMode.value })
 }
 
 // 自动发现模式下安装命令不带 -id：Agent 首次上报时由服务端自动创建服务器。
@@ -2039,9 +2041,11 @@ const buildAutoDiscoveryCommand = ({ targetOs: os = 'linux', installMode: mode =
   const installCommand = isLinux
     ? `( set -e; cfsm_script=$(mktemp); trap 'rm -f "$cfsm_script"' EXIT; curl -fsSL ${quotePosixShellArg(ghUrl)} -o "$cfsm_script"; CFSM_ASSET_BASE=${quotePosixShellArg(HOST)} sh "$cfsm_script" ${params.join(' ')} )`
     : `curl -fsSL ${quotePosixShellArg(ghUrl)} | sh -s -- ${params.join(' ')}`
-  if (os !== 'linux' || mode !== 'cfsm-user') return installCommand
-
-  return buildInstallAsCfsmCommand(installCommand, trans.value.nonRootInstallRunStep)
+  if (os !== 'linux') return installCommand
+  const mainCommand = mode === 'cfsm-user'
+    ? buildInstallAsCfsmCommand(installCommand, trans.value.nonRootInstallRunStep)
+    : installCommand
+  return attachQualitySidecar(mainCommand, { baseUrl: HOST, installMode: mode })
 }
 
 const getAutoDiscoveryInstallCommand = () => buildAutoDiscoveryCommand({
