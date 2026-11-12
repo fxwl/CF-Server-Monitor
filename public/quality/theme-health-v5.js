@@ -9,7 +9,7 @@
   const QUOTA_WARN = 80, QUOTA_BAD = 95; // 流量已用比例（%）
   const LEVEL = { ok: 0, warn: 1, bad: 2, off: 3 };
   const TEXT = { ok: '正常', warn: '注意', bad: '异常', off: '离线' };
-  let filter = null, timer = null;
+  let timer = null;
 
   const make = (tag, cls, text) => {
     const e = document.createElement(tag);
@@ -76,65 +76,17 @@
     } else why?.remove();
   }
 
-  function strip(counts, total) {
-    const grid = document.querySelector('.mao-section-header, .home-dashboard [aria-label] .mao-section-header')
-      || document.querySelector('[id^="node-card-"]')?.parentElement;
-    if (!grid) return;
-    let s = document.querySelector('.cfsmh-strip');
-    if (!s) {
-      s = make('div', 'cfsmh-strip');
-      s.setAttribute('role', 'toolbar');
-      s.setAttribute('aria-label', '服务器健康筛选');
-      grid.parentElement.insertBefore(s, grid.classList.contains('mao-section-header') ? grid.nextSibling : grid);
-      s.addEventListener('click', e => {
-        const btn = e.target.closest('button[data-level]');
-        if (!btn) return;
-        filter = btn.dataset.level === 'all' || btn.dataset.level === filter ? null : btn.dataset.level;
-        apply();
-      });
-    }
-    const sig = JSON.stringify([counts, total, filter]);
-    if (s.dataset.sig === sig) return;
-    s.dataset.sig = sig;
-    s.replaceChildren();
-    const worst = counts.off || counts.bad ? 'bad' : counts.warn ? 'warn' : 'ok';
-    const head = make('div', 'cfsmh-strip-head');
-    head.dataset.level = worst;
-    head.append(make('strong', '', worst === 'ok' ? '全部正常' : worst === 'warn' ? '有节点需要注意' : '有节点异常'),
-      make('span', '', total + ' 台服务器'));
-    s.append(head);
-    const btns = make('div', 'cfsmh-strip-btns');
-    for (const lv of ['ok', 'warn', 'bad', 'off']) {
-      const b = make('button', 'cfsmh-chip');
-      b.type = 'button';
-      b.dataset.level = lv;
-      b.setAttribute('aria-pressed', String(filter === lv));
-      b.disabled = !counts[lv];
-      b.append(make('i'), make('span', '', TEXT[lv]), make('b', '', String(counts[lv] || 0)));
-      btns.append(b);
-    }
-    if (filter) {
-      const all = make('button', 'cfsmh-chip cfsmh-all', '显示全部');
-      all.type = 'button'; all.dataset.level = 'all';
-      btns.append(all);
-    }
-    s.append(btns);
-  }
-
   function apply() {
+    // Keep per-card health badges, but never render a homepage summary strip.
+    document.querySelector('.cfsmh-strip')?.remove();
     const cards = [...document.querySelectorAll('[id^="node-card-"]')];
-    if (!cards.length) { document.querySelector('.cfsmh-strip')?.remove(); return; }
-    const counts = { ok: 0, warn: 0, bad: 0, off: 0 };
     for (const wrap of cards) {
       const card = wrap.matches('.server-card,.compact-node-card') ? wrap : (wrap.querySelector('.server-card,[class*="compact-node"]') || wrap);
       const v = judge(card);
-      counts[v.level]++;
       if (wrap.dataset.cfsmh !== v.level) wrap.dataset.cfsmh = v.level;
       badge(wrap, v);
-      wrap.classList.toggle('cfsmh-hidden', !!filter && v.level !== filter);
+      wrap.classList.remove('cfsmh-hidden');
     }
-    if (filter && !counts[filter]) { filter = null; return apply(); }
-    strip(counts, cards.length);
   }
 
   function schedule() {

@@ -531,7 +531,7 @@ export async function serveFrontend(request, env, settings = null) {
       // Attach our same-origin quality bridge without changing the pinned external theme.
       const isAnotherLumina = /^https:\/\/github\.com\/Vegas7\/CFSM-Theme-AnotherLuminaPlus\/tree\/[^/]+\/?$/i.test(effectiveThemeUrl);
       const bridgedHtml = isAnotherLumina
-        ? insertBeforeHeadClose(themeHtml, '<link rel="stylesheet" href="/quality/theme-approved-v5.css"><script src="/quality/theme-home-v5.js" defer></script><script src="/quality/theme-detail-v5.js" defer></script><link rel="stylesheet" href="/quality/theme-health-v5.css"><script src="/quality/theme-health-v5.js" defer></script><script src="/quality/theme-detail-health-v5.js" defer></script>')
+        ? insertBeforeHeadClose(themeHtml, '<link rel="stylesheet" href="/quality/theme-approved-v5.css?v=20261112-cleanup1"><script src="/quality/theme-home-v5.js?v=20261112-cleanup1" defer></script><script src="/quality/theme-detail-v5.js?v=20261112-cleanup1" defer></script><link rel="stylesheet" href="/quality/theme-health-v5.css?v=20261112-cleanup1"><script src="/quality/theme-health-v5.js?v=20261112-cleanup1" defer></script><script src="/quality/theme-detail-health-v5.js?v=20261112-cleanup1" defer></script>')
         : themeHtml;
       return buildHtmlResponse(bridgedHtml, settings, request, env, previewThemeUrl);
     }

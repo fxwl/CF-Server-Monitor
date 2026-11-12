@@ -86,3 +86,12 @@
   .cfsmh-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .cfsmh-detail-value{font-size:18px}
 }
+/* Compact homepage: remove greeting/icon and the group/region/health filter strips.
+   Retain overview metric cards, node cards, diagnostics and per-node health badges. */
+.home-dashboard .mao-dashboard-hero .mao-hero-header,
+.home-dashboard .home-group-tabs,
+.home-dashboard .home-region-bar,
+.home-dashboard .cfsmh-strip,
+.home-dashboard .home-controls-bar:not(.has-sort) {
+  display: none !important;
+}

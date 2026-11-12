@@ -118,19 +118,20 @@
     head.after(tiles);
     return root;
   }
+  // Filter controls are hidden in the compact homepage; always show all nodes.
+  function resetHiddenFilters(){
+    const groupAll=document.querySelector('.home-dashboard .home-group-tabs button');
+    if(groupAll?.getAttribute('aria-pressed')==='false')groupAll.click();
+    const selectedRegion=document.querySelector('.home-dashboard .home-region-chip[data-active="true"]');
+    selectedRegion?.click();
+  }
   function updateCards(){
     document.querySelectorAll('[id^="node-card-"]').forEach(card=>{
       const id=(card.id||'').slice(10);
       const info=!blocked.has(id)?servers[id]?.ip:null;
       const old=card.querySelector('.cfsmq-home-final');
-      const oldIp=card.querySelector('.cfsmq-card-ip');
-      if(!info||!info.ip){ old?.remove();oldIp?.remove();return; }
-      const heading=card.querySelector('.server-card-title-row,.compact-node-title-row,.node-list-node-head');
-      if(heading){
-        let ip=heading.querySelector('.cfsmq-card-ip');
-        if(!ip){ ip=maker('small','cfsmq-card-ip');ip.title='检测出口 IPv4';heading.append(ip); }
-        if(ip.textContent!==info.ip)ip.textContent=info.ip;
-      }
+      card.querySelector('.cfsmq-card-ip')?.remove();
+      if(!info||!info.ip){ old?.remove();return; }
       if(card.classList.contains('node-list-row'))return;
       if(old?.dataset?.ver===String(version))return;
       const next=panel(info);
@@ -148,7 +149,7 @@
   }
   function debounce(){
     if(timer!==null)return;
-    timer=setTimeout(()=>{timer=null;updateCards();},100);
+    timer=setTimeout(()=>{timer=null;resetHiddenFilters();updateCards();},100);
   }
   async function refresh(){
     try{
