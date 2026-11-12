@@ -135,8 +135,11 @@ async function qualityUpload(request,env){
   return {accepted:true,duplicate:false,kind:report.kind,at:now};
 }
 async function qualityHome(env,settings,admin){
-  const servers=await env.DB.prepare('SELECT id,is_hidden FROM servers ORDER BY sort_order ASC').all();
-  const ids=new Set((servers.results||[]).filter(s=>isVisible(s,admin)).map(s=>s.id));
+  const servers=await env.DB.prepare('SELECT id,is_hidden,region FROM servers ORDER BY sort_order ASC').all();
+  const permitted=(servers.results||[]).filter(s=>isVisible(s,admin));
+  const disabled=await domesticServerIds(env.DB,permitted);
+  const excluded=new Set(disabled);
+  const ids=new Set(permitted.filter(s=>!excluded.has(s.id)).map(s=>s.id));
   const rows=await env.DB.prepare("SELECT r.server_id,r.kind,r.payload,r.created_at,r.source_ip,r.id FROM cfsm_quality_runs r WHERE r.id=(SELECT x.id FROM cfsm_quality_runs x WHERE x.server_id=r.server_id AND x.kind=r.kind ORDER BY x.created_at DESC LIMIT 1) LIMIT 500").all();
   const result={};
   for(const row of rows.results||[]){
@@ -145,11 +148,13 @@ async function qualityHome(env,settings,admin){
     if(!result[key])result[key]={};
     if(!result[key][row.kind])result[key][row.kind]=makeHome(rowValue(row));
   }
-  return {servers:result};
+  return {servers:result,disabled_server_ids:disabled};
 }
 async function qualityDetail(env,id,admin){
   const server=await safeServer(env.DB,id);
   if(!isVisible(server,admin))throw new QualityError('server_not_found',404);
+  if(isDomestic(server.region,await lookupOpts(env.DB,'country:'+id)))
+    return {server_id:id,ip:null,net:null,history:[],disabled:true};
   const rows=await env.DB.prepare('SELECT id,kind,created_at,source_ip,payload FROM cfsm_quality_runs WHERE server_id=? ORDER BY created_at DESC LIMIT 90').bind(id).all();
   const items={ip:null,net:null},history=[];
   for(const row of rows.results||[]){
@@ -171,9 +176,9 @@ async function updateOptions(request,env){
   return {saved:true};
 }
 async function optionsDetail(env){
-  const [g,s]=await Promise.all([lookupOpts(env.DB,'global'),env.DB.prepare("SELECT key,value FROM cfsm_quality_options WHERE key LIKE 'server:%'").all()]);
+  const [g,s,servers]=await Promise.all([lookupOpts(env.DB,'global'),env.DB.prepare("SELECT key,value FROM cfsm_quality_options WHERE key LIKE 'server:%'").all(),env.DB.prepare('SELECT id,region FROM servers').all()]);
   const overrides={};for(const row of s.results||[])try{overrides[row.key.slice(7)]=JSON.parse(row.value);}catch{}
-  return {global:{...DEFAULTS,...clean(g)},overrides};
+  return {global:{...DEFAULTS,...clean(g)},overrides,disabled_server_ids:await domesticServerIds(env.DB,servers.results||[])};
 }
 export async function handleIndependentQuality(request,env,loadSettings,checkAuth){
   const u=new URL(request.url),path=u.pathname;
