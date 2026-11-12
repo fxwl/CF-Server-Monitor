@@ -301,6 +301,7 @@ export default {
       { method: 'GET', path: '/api/quality/detail', handler: () => handleIndependentQuality(request, env, loadSiteSettings, checkAuth) },
       { method: 'GET', path: '/api/quality/settings', handler: () => handleIndependentQuality(request, env, loadSiteSettings, checkAuth) },
       { method: 'POST', path: '/api/quality/settings', handler: () => handleIndependentQuality(request, env, loadSiteSettings, checkAuth) },
+      { method: 'POST', path: '/api/quality/request', handler: () => handleIndependentQuality(request, env, loadSiteSettings, checkAuth) },
       { method: 'GET', path: '/api/config', handler: async () => {
         await ensureSiteSettings();
         const appearanceOptions = await loadAppearanceOptions(env.DB);
