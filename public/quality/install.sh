@@ -13,7 +13,7 @@ install -d -m 0755 -o root -g root /opt/cfsm-quality
 install -d -m 0700 -o cfsm -g cfsm /var/lib/cfsm-quality
 
 apt-get update -qq
-apt-get install -y -qq --no-install-recommends python3 curl jq bc dnsutils netcat-openbsd iproute2 ca-certificates libcap2-bin
+apt-get install -y -qq --no-install-recommends python3 curl jq bc dnsutils netcat-openbsd iproute2 iperf3 traceroute ca-certificates libcap2-bin
 
 # Official NextTrace Debian packages, installed only if not already available.
 if ! command -v nexttrace >/dev/null 2>&1; then
