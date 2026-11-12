@@ -15,7 +15,7 @@ collector=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(collector)
 
 class UpstreamIPv4Tests(unittest.TestCase):
-    def _exercise_bash(self,trace_value,plain_value,expected):
+    def _exercise_bash(self,trace_value,plain_value,expected,egress_ipv4=None):
         with tempfile.TemporaryDirectory() as root:
             directory=Path(root)
             bindir=directory/'bin'
@@ -31,6 +31,8 @@ class UpstreamIPv4Tests(unittest.TestCase):
             curl.chmod(0o755)
             env={**os.environ,'PATH':str(bindir)+':'+os.environ.get('PATH',''),
                  'TRACE_VALUE':trace_value,'PLAIN_VALUE':plain_value}
+            if egress_ipv4 is not None:
+                env['CFSM_EGRESS_IPV4']=egress_ipv4
             code=collector.IPV4_COMPAT+'\nCurlARG=""\nget_ipv4\nprintf "ip=%s\\n" "$IPV4"\n'
             p=subprocess.run(['/bin/bash','-c',code],capture_output=True,text=True,env=env,timeout=6)
             self.assertEqual(p.returncode,0,p.stderr)
@@ -45,6 +47,15 @@ class UpstreamIPv4Tests(unittest.TestCase):
 
     def test_invalid_ipv4_not_accepted(self):
         self._exercise_bash('ip=redirect','HTTP/1.1 301 Moved Permanently','')
+
+    def test_worker_observed_ipv4_does_not_require_external_services(self):
+        self._exercise_bash('error=blocked','HTTP/1.1 403','123.249.124.176',
+                            egress_ipv4='123.249.124.176')
+
+    def test_worker_source_ipv4_must_be_globally_routed(self):
+        self.assertEqual(collector.verified_source_ipv4('123.249.124.176'),'123.249.124.176')
+        for addr in ('10.0.0.1','127.0.0.1','192.168.1.1','2001:db8::1','123.249.124.999',None):
+            self.assertIsNone(collector.verified_source_ipv4(addr))
 
     def test_vendor_copy_is_patched_not_original(self):
         # Fake minimal original with the same signature as both pinned scripts.
