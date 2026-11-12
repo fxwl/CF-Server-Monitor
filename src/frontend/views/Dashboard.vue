@@ -156,6 +156,8 @@
       </div>
     </div>
 
+    <div v-if="qualityLoadError && !isLoading" class="iq-settings-tip" role="status">IP / 网络检测摘要暂时不可用：{{ qualityLoadError }}。普通监控不受影响。</div>
+
     <div id="view-card" class="view-panel" :class="{ active: isCardView, 'high-density': filteredServers.length > 12 }">
       <div v-if="groupedServers.length === 0" class="empty-state">
         [!] {{ trans.noServer }} <a href="/admin#/admin" class="admin-link-color">{{ trans.backToAdmin }}</a>{{ trans.noServerSuffix }}
@@ -219,7 +221,7 @@
               <td class="table-center-cell">
                 <div class="status-indicator table-status-indicator-inline" :style="{ background: getStatusColor(server) }"></div>
               </td>
-              <td><b class="table-server-name">{{ server.name }}</b></td>
+              <td><b class="table-server-name">{{ server.name }}</b><div v-if="!isDomesticQualityDisabled(server) && qualityByServer[server.id]?.ip?.ip" class="iq-server-ip">{{ qualityByServer[server.id].ip.ip }}</div></td>
               <td>
                 <span v-if="server.region && server.region !== 'xx'" class="country-os-icons">
                   <img :src="getPublicAssetUrl('flags/' + getFlagRegionCode(server.region) + '.svg')" :alt="server.region" class="flag-img">
@@ -404,18 +406,27 @@ import {
 
 const servers = ref([])
 const qualityByServer = ref({})
+const qualityLoadError = ref('')
 const qualityDisabledServerIds=ref(new Set())
 const isDomesticQualityDisabled = server =>
   String(server?.region||'').trim().toUpperCase()==='CN' ||
   qualityDisabledServerIds.value.has(server?.id)
 let qualityRefreshTimer = null
 async function refreshQuality(){
-  try { const response = await http.getByIndex('/api/quality/home',0,{autoRedirect:false});
-    if(response?.data?.servers) {
-      qualityByServer.value=response.data.servers
-      qualityDisabledServerIds.value=new Set(response.data.disabled_server_ids||[])
+  try {
+    const response = await http.getByIndex('/api/quality/home', 0, {autoRedirect:false, timeoutMs:15000})
+    if (!response?.data?.servers || typeof response.data.servers !== 'object') {
+      qualityLoadError.value = response?.error || '质量数据接口未返回服务器列表'
+      console.warn('[CFSM] IPQuality/NetQuality:', qualityLoadError.value)
+      return
     }
-  }catch(_){}
+    qualityByServer.value = response.data.servers
+    qualityDisabledServerIds.value = new Set(response.data.disabled_server_ids || [])
+    qualityLoadError.value = ''
+  } catch (error) {
+    qualityLoadError.value = error?.message || '质量数据加载失败'
+    console.warn('[CFSM] IPQuality/NetQuality:', qualityLoadError.value)
+  }
 }
 const stats = ref({ total: '-', online: 0, offline: 0, globalNetRx: 0, globalNetTx: 0, globalSpeedIn: 0, globalSpeedOut: 0 })
 const unknownStats = ref(0)
@@ -1341,9 +1352,10 @@ onMounted(async () => {
   if (rawSavedView && rawSavedView !== savedView) {
     localStorage.setItem(STORAGE.VIEW_PREFERENCE, savedView)
   }
-  await refreshData()
+  // Diagnostics must load independently of potentially slow primary metrics.
   void refreshQuality()
   qualityRefreshTimer=setInterval(refreshQuality,300000)
+  await refreshData()
   await nextTick()
   scheduleFilterMeasurement()
   if (window.ResizeObserver && filterWrap.value) {
