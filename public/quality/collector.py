@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
 """Independent, scheduled IPQuality + NetQuality probes for CFSM.
-Runs as the existing cfsm user. Never changes the live metrics probe.
+Runs as isolated cfsm-quality user. Never changes the live metrics probe.
 """
 import datetime
-import http.client
-import socket
 import fcntl
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 import sys
 import time
-import urllib.error
-import urllib.request
 import uuid
 
 BASE=Path('/opt/cfsm-quality')
@@ -48,57 +45,102 @@ def creds():
         raise ValueError('invalid_probe_config')
     return server,secret
 
-def ipv4_connect(address,timeout=20,source_address=None,**kwargs):
-    last=None
-    for family,kind,proto,_,addr in socket.getaddrinfo(address[0],address[1],socket.AF_INET,socket.SOCK_STREAM):
-        sock=socket.socket(family,kind,proto)
-        try:
-            sock.settimeout(timeout)
-            if source_address:sock.bind(source_address)
-            sock.connect(addr)
-            return sock
-        except OSError as exc:
-            last=exc
-            sock.close()
-    raise last or OSError('ipv4_unavailable')
+# System curl requests are accepted by the Cloudflare-proxied production API.
+# Never expose the bearer secret in process arguments, files, or logs.
+CURL='/usr/bin/curl'
 
-class IPv4HTTPS(http.client.HTTPSConnection):
-    def connect(self):
-        self._create_connection=ipv4_connect
-        super().connect()
+class QualityHTTPError(ValueError):
+    def __init__(self,status):
+        super().__init__('HTTP Error '+str(status))
+        self.status=status
 
-class IPv4Handler(urllib.request.HTTPSHandler):
-    def https_open(self,request):
-        return self.do_open(IPv4HTTPS,request,context=self._context)
+def curl_quote(value):
+    if '\r' in value or '\n' in value:
+        raise ValueError('invalid_http_header')
+    return '"' + value.replace('\\','\\\\').replace('"','\\"') + '"'
 
-OPENER=urllib.request.build_opener(urllib.request.ProxyHandler({}),IPv4Handler())
+def response_headers(path):
+    headers={}
+    for line in path.read_text(encoding='iso-8859-1').splitlines():
+        if line.startswith('HTTP/'):
+            headers={}
+        elif ':' in line:
+            key,val=line.split(':',1)
+            headers[key.strip().lower()]=val.strip()
+    return headers
 
 def request(path,server,secret,payload=None):
-    data=None if payload is None else json.dumps(payload,separators=(',',':'),ensure_ascii=False).encode('utf-8')
-    headers={'Accept':'application/json','Authorization':'Bearer '+secret,'X-CFSM-Server-ID':server}
-    if payload is not None: headers['Content-Type']='application/json'
-    req=urllib.request.Request(URL+path,data=data,headers=headers)
-    try:
-        with OPENER.open(req,timeout=45) as resp:
-            body=resp.read(128*1024)
-            if resp.read(1):raise ValueError('api_response_too_large')
-        return json.loads(body)
-    except urllib.error.HTTPError as exc:
-        content_type=exc.headers.get('Content-Type','').split(';',1)[0].lower()
-        api_error=None
-        if content_type=='application/json':
-            try:
-                parsed=json.loads(exc.read(512))
-                if isinstance(parsed,dict):
-                    api_error=str(parsed.get('error') or parsed.get('code') or '')[:120]
-            except (ValueError,UnicodeDecodeError,OSError):
-                pass
-        note('api_http_error',endpoint=path,status=exc.code,
-             server=exc.headers.get('Server','')[:60],
-             cf_ray=exc.headers.get('CF-Ray','')[:100],
-             cf_mitigated=exc.headers.get('cf-mitigated','')[:60],
-             content_type=content_type[:70],api_error=api_error)
-        raise
+    if not path.startswith('/api/quality/') or '?' in path:
+        raise ValueError('invalid_api_path')
+    if not re.fullmatch(r'[\da-fA-F-]{20,80}',server) or not secret:
+        raise ValueError('invalid_credentials')
+    options=[
+        'header = '+curl_quote('Accept: application/json'),
+        'header = '+curl_quote('Authorization: Bearer '+secret),
+        'header = '+curl_quote('X-CFSM-Server-ID: '+server)
+    ]
+    if payload is not None:
+        options.append('header = '+curl_quote('Content-Type: application/json'))
+    # Temporary directory is mode 0700, removed after the HTTP request.
+    with tempfile.TemporaryDirectory(prefix='cfsm-quality-http-') as tmp:
+        location=Path(tmp)
+        headers_file=location/'headers'
+        body_file=location/'response'
+        cmd=[CURL,'--silent','--show-error','--ipv4','--noproxy','*',
+             '--connect-timeout','20','--max-time','70',
+             '--proto','=https','--config','-',
+             '--dump-header',str(headers_file),'--output',str(body_file),
+             '--write-out','%{http_code}','--url',URL+path]
+        if payload is not None:
+            upload_file=location/'upload'
+            upload_file.write_bytes(json.dumps(payload,separators=(',',':'),ensure_ascii=False).encode('utf-8'))
+            upload_file.chmod(0o600)
+            cmd.extend(['--request','POST','--data-binary','@'+str(upload_file)])
+        try:
+            result=subprocess.run(cmd,input=('\n'.join(options)+'\n').encode('utf-8'),
+                                  capture_output=True,timeout=80,check=False)
+        except subprocess.TimeoutExpired:
+            note('api_transport_error',endpoint=path,error='timeout')
+            raise ValueError('curl_timeout')
+        if result.returncode!=0:
+            note('api_transport_error',endpoint=path,error='curl_exit',code=result.returncode)
+            raise ValueError('curl_transport_error')
+        try:
+            status=int(result.stdout.decode('ascii').strip())
+        except (UnicodeError,ValueError):
+            raise ValueError('invalid_api_http_status')
+        headers=response_headers(headers_file) if headers_file.is_file() else {}
+        if not body_file.is_file() or body_file.stat().st_size>131072:
+            raise ValueError('api_response_too_large')
+        content=body_file.read_bytes()
+        if status<200 or status>=300:
+            content_type=headers.get('content-type','').split(';',1)[0].lower()
+            api_error=None
+            error_code=None
+            error_category=None
+            if content_type=='application/json':
+                try:
+                    parsed=json.loads(content)
+                    if isinstance(parsed,dict):
+                        api_error=str(parsed.get('error') or parsed.get('error_name') or '')[:100]
+                        error_code=str(parsed.get('error_code') or '')[:32]
+                        error_category=str(parsed.get('error_category') or '')[:50]
+                except (UnicodeError,ValueError):
+                    pass
+            note('api_http_error',endpoint=path,status=status,
+                 server=headers.get('server','')[:60],
+                 cf_ray=headers.get('cf-ray','')[:100],
+                 cf_mitigated=headers.get('cf-mitigated','')[:60],
+                 content_type=content_type[:70],api_error=api_error,
+                 error_code=error_code,error_category=error_category)
+            raise QualityHTTPError(status)
+        try:
+            parsed=json.loads(content)
+        except (UnicodeError,ValueError):
+            raise ValueError('invalid_api_json')
+        if not isinstance(parsed,dict):
+            raise ValueError('invalid_api_response')
+        return parsed
 
 def read_state():
     path=STATE/'last-run.json'
@@ -169,7 +211,6 @@ def probe(kind,server,secret,state):
     if kind=='net':
         payload['route_text']=output[-105000:]
         payload['routes']=routes_from_console(output)
-        payload['routes']=routes_from_console(output)
     report_file=folder/'report.json'
     report_file.write_text(json.dumps(payload,ensure_ascii=False),encoding='utf-8')
     report_file.chmod(0o600)
@@ -180,7 +221,7 @@ def probe(kind,server,secret,state):
                 state[kind]=int(time.time()*1000)
                 note('report_accepted',kind=kind,bytes=report_file.stat().st_size)
                 return True
-        except (ValueError,OSError,urllib.error.HTTPError) as exc:
+        except (ValueError,OSError) as exc:
             note('report_upload_error',kind=kind,attempt=attempt+1,error=type(exc).__name__)
         time.sleep((attempt+1)*2)
     return False
@@ -224,5 +265,5 @@ def run():
 if __name__=='__main__':
     try:sys.exit(run())
     except Exception as e:
-        note('fatal',error=type(e).__name__,detail=str(e)[:120] if isinstance(e,(ValueError,urllib.error.HTTPError)) else None)
+        note('fatal',error=type(e).__name__,detail=str(e)[:120] if isinstance(e,ValueError) else None)
         sys.exit(1)
