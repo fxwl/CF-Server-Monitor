@@ -20,6 +20,16 @@ jobs:
       - run: node --test test/independent-quality.test.js
       - run: python3 -m py_compile public/quality/collector.py
       - run: bash -n public/quality/install.sh
+      - run: |
+          set -eu
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          printf 'SERVER_ID="01234567-89ab-cdef-0123-456789abcdef"\nSECRET="fake-test-key-12345678901234567890"\n' > "$tmp/config.conf"
+          sudo env CFSM_PROBE_CONFIG="$tmp/config.conf" CFSM_QUALITY_PREFLIGHT_ONLY=1 bash public/quality/install.sh
+          if sudo env CFSM_PROBE_CONFIG="$tmp/missing.conf" CFSM_QUALITY_PREFLIGHT_ONLY=1 bash public/quality/install.sh; then
+            echo 'Missing file must fail the preflight' >&2
+            exit 1
+          fi
       - run: npm run test:history-query
       - run: bash scripts/build-icmp-agent.sh
       - run: node scripts/verify-release.mjs
