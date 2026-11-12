@@ -92,3 +92,5 @@
 .iq-settings-command{margin-top:7px;background:var(--bg-hover);padding:10px;overflow-wrap:anywhere;font-size:11px}
 .iq-settings-command code{white-space:normal;overflow-wrap:anywhere}
 .iq-facts select,.iq-facts input[type=number]{max-width:200px;background:var(--input-bg);border:1px solid var(--border-color);padding:4px;color:var(--text-primary)}
+
+.iq-server-ip{font-size:10px;color:var(--text-secondary);overflow-wrap:anywhere;align-self:center}
