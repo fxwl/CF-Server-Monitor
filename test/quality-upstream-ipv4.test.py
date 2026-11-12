@@ -52,6 +52,25 @@ class UpstreamIPv4Tests(unittest.TestCase):
         self._exercise_bash('error=blocked','HTTP/1.1 403','1.1.1.1',
                             egress_ipv4='1.1.1.1')
 
+    def test_compatibility_path_avoids_bash_ere(self):
+        # The user's Debian 12 VPS returned SIGSEGV inside Bash while
+        # evaluating the source IPv4 helper, not a JSON or HTTP error.
+        self.assertNotIn(' =~ ',collector.IPV4_COMPAT)
+        self.assertIn('cfsm_ipv4_literal',collector.IPV4_COMPAT)
+
+    def test_invalid_edge_ipv4_is_rejected_by_bash_and_falls_back(self):
+        self._exercise_bash('fl=test\\nip=198.51.100.24',
+                            '203.0.113.42','198.51.100.24',
+                            egress_ipv4='123.249.124.999')
+
+    def test_ipv4_literals_reject_bogus_octets_and_control_characters(self):
+        with tempfile.TemporaryDirectory() as root:
+            code=collector.IPV4_COMPAT+'\\ncfsm_ipv4_literal "$CFSM_EGRESS_IPV4"\\n'
+            for bad in ('999.1.1.1','1.1.1','bad','1.1.1.1\\nInjected',''):
+                p=subprocess.run(['/bin/bash','-c',code],env={**os.environ,'CFSM_EGRESS_IPV4':bad},
+                                 capture_output=True,timeout=5)
+                self.assertNotEqual(p.returncode,0,bad)
+
     def test_worker_source_ipv4_must_be_globally_routed(self):
         self.assertEqual(collector.verified_source_ipv4('1.1.1.1'),'1.1.1.1')
         for addr in ('10.0.0.1','127.0.0.1','192.168.1.1','2001:db8::1','123.249.124.999',None):
