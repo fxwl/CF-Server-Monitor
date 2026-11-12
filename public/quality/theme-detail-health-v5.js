@@ -81,18 +81,7 @@
       { key: 'net', label: '实时网速', value: netKey ? r[netKey].value || '—' : '—', sub: offline ? '最后上报数据' : '上传 / 下载', lv: '', small: true },
       { key: 'up', label: '运行时长', value: uptime, sub: offline ? '离线' : '在线', lv: offline ? 'off' : 'ok', small: true }
     ];
-    // IP 风险：复用 theme-detail-v5.js 生成的关键指标卡片颜色。
-    const ipTiles = [...document.querySelectorAll('#root .cfsmq-tile')];
-    if (ipTiles.length) {
-      const worst = ipTiles.reduce((w, t) => {
-        const l = t.classList.contains('is-bad') ? 'bad' : t.classList.contains('is-warn') ? 'warn' : w;
-        return RANK[l] > RANK[w] ? l : w;
-      }, 'ok');
-      const flagged = ipTiles.filter(t => t.matches('.is-bad,.is-warn'))
-        .map(t => t.querySelector('.cfsmq-tile-label')?.textContent).filter(Boolean);
-      tiles.push({ key: 'ip', label: 'IP 质量', value: worst === 'ok' ? '良好' : worst === 'warn' ? '一般' : '较差',
-        sub: flagged.join('、') || '各项检测正常', lv: worst, why: 'IP ' + (flagged.join('、') || '') });
-    }
+    // 主机运行健康仅评估资源指标。IP 质量在独立检测区展示，不重复计入主机异常。
     let overall = offline ? 'off' : 'ok';
     const reasons = offline ? ['节点离线，以下为最后上报数据'] : [];
     for (const t of tiles) {

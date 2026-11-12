@@ -1,0 +1,135 @@
+/* CFSM AnotherLuminaPlus v6: compact, content-first homepage overview.
+   Scoped to the homepage; server cards, quality diagnostics and admin remain unchanged. */
+.home-dashboard .mao-dashboard-hero{
+  gap:14px;
+  padding:clamp(12px,1.1vw,18px);
+  margin-bottom:20px;
+  border-radius:18px;
+  align-items:stretch;
+}
+:root:not([data-appearance="dark"]) .home-dashboard .mao-dashboard-hero{
+  background:#f3f5f8;
+  border-color:#e4e8ee;
+}
+@media (min-width:1440px){
+  .home-dashboard .mao-dashboard-hero:not([data-stat-cards="0"]):not([data-stat-cards="1"]){
+    display:grid;
+    grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);
+  }
+}
+@media (min-width:1180px) and (max-width:1439px){
+  .home-dashboard .mao-dashboard-hero{grid-template-columns:minmax(0,1fr)}
+}
+.home-dashboard .mao-dashboard-hero[data-stat-cards="0"] .mao-hero-main{display:none}
+.home-dashboard .mao-hero-main{
+  height:auto;
+  min-height:0;
+  justify-content:stretch;
+}
+.home-dashboard .mao-stat-grid{gap:10px;min-height:0}
+.home-dashboard .mao-stat-card{
+  min-height:148px;
+  padding:14px 16px 13px;
+  gap:10px;
+  border-radius:13px;
+  box-shadow:none;
+}
+.home-dashboard .mao-stat-head,
+.home-dashboard .mao-stat-title-wrap{min-width:0}
+.home-dashboard .mao-stat-title-wrap{gap:8px}
+.home-dashboard .mao-stat-label{
+  font-size:12px;
+  font-weight:650;
+  line-height:1.35;
+}
+.home-dashboard .mao-stat-value{
+  margin:0;
+  font-size:clamp(23px,1.6vw,29px);
+  font-weight:800;
+  line-height:1.12;
+  letter-spacing:-.035em;
+  font-variant-numeric:tabular-nums;
+  overflow-wrap:anywhere;
+}
+.home-dashboard .mao-stat-unit,
+.home-dashboard .mao-stat-slash-total{font-size:12px;letter-spacing:0}
+.home-dashboard .mao-stat-footer{min-height:14px}
+.home-dashboard .mao-stat-caption{font-size:11px;line-height:1.35}
+.home-dashboard .mao-progress-container{
+  padding:14px;
+  gap:10px;
+  border-radius:14px;
+  box-shadow:none;
+}
+.home-dashboard .mao-progress-head{align-items:center}
+.home-dashboard .mao-progress-title{font-size:14px;line-height:1.25}
+.home-dashboard .mao-progress-subtitle{display:none}
+.home-dashboard .mao-status-pill,
+.home-dashboard .overview-card-rating.is-bandwidth-badge{font-size:10.5px}
+.home-dashboard .mao-progress-section{
+  padding:10px 12px;
+  gap:6px;
+  border-radius:10px;
+}
+.home-dashboard .mao-progress-big-num{font-size:25px;line-height:1.05}
+.home-dashboard .mao-progress-tag-box{
+  flex-direction:row;
+  align-items:baseline;
+  gap:5px;
+}
+.home-dashboard .mao-progress-tag-label{font-size:10.5px}
+.home-dashboard .mao-progress-tag-val{font-size:12px;font-weight:700}
+.home-dashboard .mao-progress-section-footer{font-size:10.5px}
+.home-dashboard .mao-network-section{flex:1 1 auto;gap:8px}
+.home-dashboard .mao-realtime-charts-grid{gap:8px}
+.home-dashboard .mao-network-section .mao-realtime-chart-card{
+  padding:8px 10px 6px;
+  gap:5px;
+  box-shadow:none;
+}
+.home-dashboard .mao-realtime-chart-title,
+.home-dashboard .mao-realtime-chart-rates{font-size:11.5px}
+.home-dashboard .mao-realtime-chart-canvas-wrap{height:104px}
+/* Tablet/laptop: a full-width metrics grid, with status and charts side by side. */
+@media (min-width:769px) and (max-width:1439px){
+  .home-dashboard .mao-progress-container:has(.mao-network-section){
+    display:grid;
+    grid-template-columns:minmax(240px,.7fr) minmax(0,1.3fr);
+    grid-template-rows:auto minmax(0,1fr);
+    align-items:stretch;
+  }
+  .home-dashboard .mao-progress-container:has(.mao-network-section)>.mao-progress-head{
+    grid-column:1/-1;
+  }
+  .home-dashboard .mao-progress-container:has(.mao-network-section)>.mao-progress-section:not(.mao-network-section){
+    grid-column:1;
+    grid-row:2;
+    justify-content:center;
+  }
+  .home-dashboard .mao-progress-container:has(.mao-network-section)>.mao-network-section{
+    grid-column:2;
+    grid-row:2;
+  }
+}
+@media (max-width:768px){
+  .home-dashboard .mao-dashboard-hero{
+    padding:12px;
+    gap:12px;
+    margin-bottom:16px;
+    border-radius:14px;
+  }
+  .home-dashboard .mao-stat-grid{gap:8px;grid-template-rows:auto}
+  .home-dashboard .mao-stat-card{min-height:126px;padding:12px;gap:8px}
+  .home-dashboard .mao-stat-value{font-size:clamp(21px,4.4vw,25px)}
+  .home-dashboard .mao-progress-container{padding:12px}
+  .home-dashboard .mao-realtime-chart-canvas-wrap{height:112px}
+}
+@media (max-width:420px){
+  .home-dashboard .mao-stat-card{min-height:118px;padding:11px 12px}
+  .home-dashboard .mao-stat-label{font-size:11px}
+  .home-dashboard .mao-stat-value{font-size:21px}
+  .home-dashboard .mao-stat-unit,
+  .home-dashboard .mao-stat-slash-total{font-size:11px}
+  .home-dashboard .mao-stat-caption{font-size:10px}
+  .home-dashboard .mao-progress-head{align-items:flex-start;flex-wrap:wrap}
+}
