@@ -92,6 +92,22 @@ const lookupOpts = async(db,key) => {
   const row=await db.prepare('SELECT value FROM cfsm_quality_options WHERE key=?').bind(key).first();
   try {return row ? JSON.parse(row.value) : null;} catch{return null;}
 };
+// Remember Cloudflare-authenticated country for nodes without a configured region.
+async function rememberObservedCountry(db,id,country){
+  if(!countryCode(country))return;
+  const key='country:'+id;
+  if(await lookupOpts(db,key)===country)return;
+  await db.prepare('INSERT INTO cfsm_quality_options(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').bind(key,JSON.stringify(country)).run();
+}
+async function domesticServerIds(db,servers){
+  const rows=await db.prepare("SELECT key,value FROM cfsm_quality_options WHERE key LIKE 'country:%'").all();
+  const observed=new Map();
+  for(const row of rows.results||[]){
+    if(typeof row.key!=='string'||!row.key.startsWith('country:'))continue;
+    try{observed.set(row.key.slice(8),JSON.parse(row.value));}catch{}
+  }
+  return servers.filter(s=>isDomestic(s.region,observed.get(s.id))).map(s=>s.id);
+}
 export async function qualitySchedule(db,id,region=null,sourceCountry=null) {
   const global=await lookupOpts(db,'global');
   const local=await lookupOpts(db,'server:'+id);
@@ -101,8 +117,10 @@ export async function qualitySchedule(db,id,region=null,sourceCountry=null) {
   return {enabled:!domestic&&v.enabled!==false,skip_reason:domestic?'country_cn':null,ip_hours:validHours(v.ip_hours)?v.ip_hours:DEFAULTS.ip_hours,net_hours:validHours(v.net_hours)?v.net_hours:DEFAULTS.net_hours,requested:{ip:typeof ipr==='number'?ipr:0,net:typeof nr==='number'?nr:0}};
 }
 async function qualityUpload(request,env){
-  const {id,source}=await agentAuth(request,env);
+  const {id,source,server}=await agentAuth(request,env);
   await ensureQualityTables(env.DB);
+  if(isDomestic(server.region,request.cf?.country)||isDomestic(null,await lookupOpts(env.DB,'country:'+id)))
+    throw new QualityError('domestic_quality_disabled',409);
   const raw=await readPayload(request),now=Date.now(),report=validateDiagnosticReport(raw,source,now);
   const identifier=`${id}:${report.kind}:${report.run_id}`;
   const existing=await env.DB.prepare('SELECT id FROM cfsm_quality_runs WHERE id=?').bind(identifier).first();
@@ -165,11 +183,13 @@ export async function handleIndependentQuality(request,env,loadSettings,checkAut
     const now=Date.now();
     if(path==='/api/quality/report' && request.method==='POST')return json(await qualityUpload(request,env));
     if(path==='/api/quality/config' && request.method==='GET'){
-      const {id,source}=await agentAuth(request,env);await ensureQualityTables(env.DB);
-      // Trusted Cloudflare ingress IP, not a client-supplied header. Avoid
-      // depending on overseas IP-check services for domestic VPS probes.
-      const country=typeof request.cf?.country==='string' && /^[A-Z]{2}$/.test(request.cf.country) ? request.cf.country : null;
-      return json({schema_version:1,schedule:await qualitySchedule(env.DB,id),now,
+      const {id,source,server}=await agentAuth(request,env);await ensureQualityTables(env.DB);
+      // request.cf country belongs to the authenticated Cloudflare ingress,
+      // never to an untrusted custom header.
+      const c=countryCode(request.cf?.country);
+      const country=/^[A-Z]{2}$/.test(c)?c:null;
+      if(country)await rememberObservedCountry(env.DB,id,country);
+      return json({schema_version:1,schedule:await qualitySchedule(env.DB,id,server.region,country),now,
         source_ipv4:source && isIP(source)===4 ? source : null,source_country:country});
     }
     if(!['GET','POST'].includes(request.method))throw new QualityError('method_not_allowed',405);
@@ -178,7 +198,9 @@ export async function handleIndependentQuality(request,env,loadSettings,checkAut
       if(!admin || request.method!=='POST')throw new QualityError('unauthorized',401);
       await ensureQualityTables(env.DB);
       const data=await readPayload(request);if(!goodId(data?.id)||!KINDS.has(data?.kind))throw new QualityError('invalid_request');
-      await safeServer(env.DB,data.id);
+      const server=await safeServer(env.DB,data.id);
+      if(isDomestic(server.region,await lookupOpts(env.DB,'country:'+data.id)))
+        throw new QualityError('domestic_quality_disabled',409);
       const at=Date.now(),key='request:'+data.id+':'+data.kind;
       await env.DB.prepare('INSERT INTO cfsm_quality_options(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').bind(key,JSON.stringify(at)).run();
       return json({requested:true,kind:data.kind,at});
