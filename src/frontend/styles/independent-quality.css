@@ -1,0 +1,83 @@
+
+/* Independent IPQuality / NetQuality; adapt to existing CFSM theme tokens. */
+.iq-top,.iq-bottom{display:grid;gap:12px;margin:12px 0;min-width:0}
+.iq-top{grid-template-columns:repeat(2,minmax(0,1fr))}
+.iq-panel,.iq-inner{min-width:0;background:var(--bg-card);border:1px solid var(--border-color);border-radius:6px;padding:12px}
+.iq-panel>header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.iq-panel header b{font-size:14px;font-weight:600;color:var(--text-primary)}
+.iq-panel header small{font-size:11px;color:var(--text-secondary)}
+.iq-panel h3,.iq-inner h3{font-size:13px;color:var(--text-primary);font-weight:600;margin:12px 0 8px}
+.iq-inner h3{margin-top:0}
+.iq-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:4px 14px}
+.iq-pair{display:flex;gap:8px;align-items:center;justify-content:space-between;padding:5px 1px;border-bottom:1px solid var(--border-color);font-size:12px;min-width:0}
+.iq-pair span{color:var(--text-secondary)}
+.iq-pair strong{font-weight:500;max-width:70%;text-align:right;overflow-wrap:anywhere}
+.iq-scroll{overflow-x:auto;width:100%;max-width:100%}
+.iq-table{width:100%;border-collapse:collapse;font-size:12px}
+.iq-table th,.iq-table td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--border-color);white-space:nowrap}
+.iq-table thead th{background:var(--bg-hover);color:var(--text-secondary);font-weight:600}
+.iq-table td{font-variant-numeric:tabular-nums}
+.iq-factor{min-width:620px}
+.iq-trend-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(188px,255px);gap:12px;align-items:stretch}
+.iq-plot{border:1px solid var(--border-color);border-radius:5px;position:relative;min-width:0;padding:8px}
+.iq-plot svg{width:100%;height:155px;display:block;overflow:visible}
+.iq-plot-top{font-size:11px;color:var(--text-secondary)}
+.iq-nodata{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--text-muted)}
+.iq-latest{border:1px solid var(--border-color);border-radius:5px;padding:8px;min-width:0}
+.iq-latest>b{display:block;margin-bottom:7px;font-size:12px}
+.iq-latest button{display:flex;width:100%;padding:4px 5px;justify-content:space-between;gap:7px;border:0;border-bottom:1px solid var(--border-color);background:transparent;color:var(--text-primary);font-size:11px;text-align:left;cursor:pointer}
+.iq-latest button:hover,.iq-latest button.active{background:var(--bg-hover)}
+.iq-latest button strong{font-weight:600;white-space:nowrap}
+.iq-fluid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,155px),1fr));gap:5px;margin-top:6px;width:100%}
+.iq-chip{display:flex;align-items:center;justify-content:space-between;gap:7px;background:var(--bg-hover);padding:7px 9px;border:1px solid var(--border-color);border-radius:5px;min-width:0;font-size:11px}
+.iq-chip b{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.iq-chip span{overflow-wrap:anywhere;text-align:right;min-width:0}
+.iq-chip strong{font-variant-numeric:tabular-nums}
+.iq-chip small{color:var(--text-secondary)}
+.iq-connection{display:grid;grid-template-columns:auto minmax(0,1fr)}
+.iq-connection small{grid-column:1/-1}
+.iq-pass{color:var(--accent-green)}
+.iq-fail{color:var(--accent-red)}
+.iq-net-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.iq-routes{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,295px),1fr));gap:8px}
+.iq-route{border:1px solid var(--border-color);background:var(--bg-hover);border-radius:5px;padding:8px 10px;min-width:0}
+.iq-route summary{display:flex;justify-content:space-between;align-items:center;gap:10px;cursor:pointer}
+.iq-route summary span:last-child{color:var(--text-secondary);font-size:11px}
+.iq-route[open]{grid-column:1/-1}
+.iq-route pre,.iq-route-raw pre{font:11px/1.55 var(--terminal-font);white-space:pre-wrap;overflow-wrap:anywhere;max-height:450px;overflow:auto;padding:8px;margin-top:8px;border-top:1px solid var(--border-color)}
+.iq-route-raw{margin-top:8px}
+.iq-compact{margin:7px 0;padding:6px 7px;border:1px solid var(--border-color);border-radius:4px;font-size:10px;min-width:0}
+.iq-section-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;font-size:11px;font-weight:600}
+.iq-section-title small{color:var(--text-secondary);font-size:10px}
+.iq-compact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}
+.iq-compact-cell{display:flex;align-items:center;gap:3px;justify-content:space-between;padding:3px 4px;background:var(--bg-hover);font-size:10px;min-width:0}
+.iq-compact-cell b{font-weight:600;overflow-wrap:anywhere;min-width:0}
+.iq-compact-cell span{overflow-wrap:anywhere}
+.iq-compact-cell strong{white-space:nowrap}
+.iq-compact-media{margin-top:4px}
+@media(max-width:960px){
+.iq-top,.iq-net-pair{grid-template-columns:minmax(0,1fr)}
+.iq-trend-layout{grid-template-columns:minmax(0,1fr)}
+.iq-latest{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px 8px}
+.iq-latest>b{grid-column:1/-1}
+}
+@media(max-width:580px){
+.iq-top,.iq-bottom{gap:9px;margin:8px 0}
+.iq-panel,.iq-inner{padding:9px}
+.iq-facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+.iq-pair{align-items:flex-start;gap:4px;flex-direction:column}
+.iq-pair strong{max-width:100%;text-align:left}
+.iq-factor{min-width:0;display:block}
+.iq-factor thead{display:none}
+.iq-factor tbody{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
+.iq-factor tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:7px;border:1px solid var(--border-color);border-radius:5px;gap:5px}
+.iq-factor th{grid-column:1/-1;font-weight:600}
+.iq-factor th,.iq-factor td{padding:3px;border-bottom:0;white-space:normal}
+.iq-factor td{display:flex;justify-content:space-between;gap:5px}
+.iq-factor td::before{content:attr(data-label);color:var(--text-secondary)}
+.iq-fluid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.iq-chip{padding:6px;flex-wrap:wrap}
+.iq-routes{grid-template-columns:minmax(0,1fr)}
+.iq-plot svg{height:120px}
+}
+@media(max-width:340px){.iq-compact-grid,.iq-fluid,.iq-latest,.iq-facts{grid-template-columns:minmax(0,1fr)}}
