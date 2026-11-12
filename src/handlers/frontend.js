@@ -527,7 +527,13 @@ export async function serveFrontend(request, env, settings = null) {
   if (!shouldUseBuiltinFrontend(path) && effectiveThemeUrl) {
     const themeHtml = await loadThemeIndex(effectiveThemeUrl);
     if (themeHtml) {
-      return buildHtmlResponse(themeHtml, settings, request, env, previewThemeUrl);
+      // This independently deployed React theme does not render the built-in Vue quality components.
+      // Attach our same-origin quality bridge without changing the pinned external theme.
+      const isAnotherLumina = /^https:\/\/github\.com\/Vegas7\/CFSM-Theme-AnotherLuminaPlus\/tree\/[^/]+\/?$/i.test(effectiveThemeUrl);
+      const bridgedHtml = isAnotherLumina
+        ? insertBeforeHeadClose(themeHtml, '<link rel="stylesheet" href="/quality/theme-bridge-v1.css"><script src="/quality/theme-bridge-v1.js" defer></script>')
+        : themeHtml;
+      return buildHtmlResponse(bridgedHtml, settings, request, env, previewThemeUrl);
     }
     return buildThemeIndexErrorResponse();
   }
