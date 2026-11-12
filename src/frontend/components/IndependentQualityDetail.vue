@@ -43,6 +43,7 @@
       <div class="iq-scroll"><table class="iq-table iq-provider-table"><thead><tr><th>检测机构</th><th>用途</th><th>公司</th><th>风险评分</th></tr></thead>
         <tbody><tr v-for="row in ipProviders" :key="row.name"><td>{{ displayProvider(row.name) }}</td><td>{{ value(row.usage) }}</td><td>{{ value(row.company) }}</td><td>{{ value(row.score) }}</td></tr></tbody>
       </table></div>
+      <p v-if="isChinaSource" class="iq-network-note">当前节点为中国大陆出口；海外 IP 数据源、流媒体和 AI 服务可能因跨境网络不可达而缺项或显示失败，不等同于服务本身不支持。数据保留上游检测原值。</p>
       <h3>全部流媒体 / AI 解锁</h3>
       <div class="iq-fluid">
         <div v-for="[name,m] in media" :key="name" class="iq-chip">
@@ -98,6 +99,7 @@ import { ref, computed, watch } from 'vue'
 const props=defineProps({part:{type:String,required:true},data:{type:Object,default:null}})
 const ip=computed(()=>props.data?.ip||null)
 const net=computed(()=>props.data?.net||null)
+const isChinaSource=computed(()=>ip.value?.source_country==='CN'||net.value?.source_country==='CN')
 const ir=computed(()=>ip.value?.report||{})
 const nr=computed(()=>net.value?.report||{})
 const value=x=>x===null||x===undefined||x===''||x==='null'?'—':String(x)
@@ -152,3 +154,7 @@ const routeCards=computed(()=>{
  return ['北京','上海','广东'].flatMap(city=>['电信','联通','移动'].map(carrier=>({city,carrier,text:null})))
 })
 </script>
+
+<style scoped>
+.iq-network-note{font-size:12px;line-height:1.6;color:var(--text-secondary,#888);margin:8px 0 12px}
+</style>
