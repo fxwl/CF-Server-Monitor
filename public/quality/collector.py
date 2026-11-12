@@ -337,13 +337,33 @@ def run():
         for kind in ('ip','net'):
             hours=schedule.get(kind+'_hours',168)
             if not isinstance(hours,int) or not 1<=hours<=720:hours=168
-            forced=int(triggered.get(kind) or 0)>int(state.get(kind+'_request') or 0)
+            request_id=int(triggered.get(kind) or 0)
+            forced=request_id>int(state.get(kind+'_request') or 0)
             due=now-int(state.get(kind) or 0)>=hours*3600000
             if not (forced or due):continue
+            # Do not re-run failing international probes every 15 minutes.
+            # A fresh admin request is still allowed to override cooldown.
+            retry=state.get(kind+'_retry') or {}
+            if not isinstance(retry,dict):retry={}
+            previous_request=int(retry.get('request_id') or 0)
+            retry_until=int(retry.get('until') or 0)
+            new_force=forced and request_id>previous_request
+            if now<retry_until and not new_force and os.environ.get('CFSM_QUALITY_FORCE')!='1':
+                note('probe_retry_wait',kind=kind,seconds_left=(retry_until-now+999)//1000)
+                continue
+            note('probe_start',kind=kind,forced=forced)
             if probe(kind,server,secret,state,source_ipv4):
-                if forced:state[kind+'_request']=int(triggered[kind])
+                if forced:state[kind+'_request']=request_id
+                state.pop(kind+'_retry',None)
                 write_state(state)
-            else:failed=True
+            else:
+                failed=True
+                failures=min(8,max(0,int(retry.get('failures') or 0))+1)
+                retry_delay=min(3600000*(2**(failures-1)),8*3600000)
+                state[kind+'_retry']={'failures':failures,'until':int(time.time()*1000)+retry_delay,
+                                      'request_id':request_id}
+                write_state(state)
+                note('probe_retry_scheduled',kind=kind,failures=failures,retry_minutes=retry_delay//60000)
         cleanup()
         return 1 if failed else 0
 
