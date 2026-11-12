@@ -56,7 +56,7 @@ test('authenticated quality config returns Cloudflare-observed IPv4',async()=>{
   const headers={
     'Authorization':'Bearer quality-test-secret-123456789',
     'X-CFSM-Server-ID':id,
-    'CF-Connecting-IP':'123.249.124.176'
+    'CF-Connecting-IP':'1.1.1.1'
   };
   const request=new Request(url,{headers});
   Object.defineProperty(request,'cf',{value:{country:'CN'}});
@@ -66,7 +66,7 @@ test('authenticated quality config returns Cloudflare-observed IPv4',async()=>{
   assert.equal(r.status,200);
   const data=await r.json();
   assert.equal(data.schema_version,1);
-  assert.equal(data.source_ipv4,'123.249.124.176');
+  assert.equal(data.source_ipv4,'1.1.1.1');
   assert.equal(data.source_country,'CN');
   assert.equal(data.schedule.enabled,true);
 });
