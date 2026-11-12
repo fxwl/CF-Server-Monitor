@@ -34,6 +34,7 @@ for (const mode of ['cfsm-user', 'current-user']) {
       assert.match(command, /CFSM_MAIN_HOME/)
     } else {
       assert.match(command, /CFSM_MAIN_CONFIG="\$HOME\/\.cf-probe\/config.conf"/)
+      assert.match(command, /CFSM_MAIN_CONFIG="\/etc\/config\/cf-probe\/config.conf"/)
     }
   })
 }
