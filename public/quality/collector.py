@@ -3,6 +3,8 @@
 Runs as the existing cfsm user. Never changes the live metrics probe.
 """
 import datetime
+import http.client
+import socket
 import fcntl
 import json
 import os
@@ -48,12 +50,37 @@ def creds():
         raise ValueError('invalid_probe_config')
     return server,secret
 
+def ipv4_connect(address,timeout=20,source_address=None,**kwargs):
+    last=None
+    for family,kind,proto,_,addr in socket.getaddrinfo(address[0],address[1],socket.AF_INET,socket.SOCK_STREAM):
+        sock=socket.socket(family,kind,proto)
+        try:
+            sock.settimeout(timeout)
+            if source_address:sock.bind(source_address)
+            sock.connect(addr)
+            return sock
+        except OSError as exc:
+            last=exc
+            sock.close()
+    raise last or OSError('ipv4_unavailable')
+
+class IPv4HTTPS(http.client.HTTPSConnection):
+    def connect(self):
+        self._create_connection=ipv4_connect
+        super().connect()
+
+class IPv4Handler(urllib.request.HTTPSHandler):
+    def https_open(self,request):
+        return self.do_open(IPv4HTTPS,request,context=self._context)
+
+OPENER=urllib.request.build_opener(urllib.request.ProxyHandler({}),IPv4Handler())
+
 def request(path,server,secret,payload=None):
     data=None if payload is None else json.dumps(payload,separators=(',',':'),ensure_ascii=False).encode('utf-8')
     headers={'Accept':'application/json','Authorization':'Bearer '+secret,'X-CFSM-Server-ID':server}
     if payload is not None: headers['Content-Type']='application/json'
     req=urllib.request.Request(URL+path,data=data,headers=headers)
-    with urllib.request.urlopen(req,timeout=45) as resp:
+    with OPENER.open(req,timeout=45) as resp:
         body=resp.read(128*1024)
         if resp.read(1):raise ValueError('api_response_too_large')
     return json.loads(body)
