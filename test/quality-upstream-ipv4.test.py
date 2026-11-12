@@ -94,10 +94,10 @@ class UpstreamIPv4Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             bindir=Path(root)
             tool=bindir/'traceroute'
-            tool.write_text('#!/bin/sh\\nprintf "traceroute to test\\\\n1 192.0.2.1 1.2 ms\\\\n2 198.51.100.2 22.3 ms\\\\n"\\n')
+            tool.write_text('#!/bin/sh\nprintf "traceroute to test\\n1 192.0.2.1 1.2 ms\\n2 198.51.100.2 22.3 ms\\n"\n')
             tool.chmod(0o755)
             env={**os.environ,'PATH':str(bindir)+':'+os.environ.get('PATH','')}
-            code=collector.NET_ROUTE_FALLBACK+'\\ncfsm_route_fallback test.example 2 1\\n'
+            code=collector.NET_ROUTE_FALLBACK+'\ncfsm_route_fallback test.example 2 1\n'
             proc=subprocess.run(['/bin/bash','-c',code],capture_output=True,text=True,env=env,timeout=8)
             self.assertEqual(proc.returncode,0,proc.stderr)
             self.assertIn('|2|1|1.2ms|192.0.2.1|-|-|-|',proc.stdout)
