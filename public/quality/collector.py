@@ -46,7 +46,7 @@ local API_NET=(
   "https://checkip.amazonaws.com"
   "https://ident.me"
 )
-for endpoint in "\${API_NET[@]}";do
+for endpoint in "${API_NET[@]}";do
 response=$(curl $CurlARG -4 -sSL --noproxy '*' --proto '=https' --proto-redir '=https' --connect-timeout 4 --max-time 8 "$endpoint" 2>/dev/null) || continue
 response=$(printf '%s' "$response"|tr -d '\r\n')
 if [[ $response =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]];then
