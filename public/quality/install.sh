@@ -5,12 +5,19 @@ export DEBIAN_FRONTEND=noninteractive
 if [ "$(id -u)" -ne 0 ]; then echo 'Run as root' >&2; exit 1; fi
 command -v systemctl >/dev/null || { echo 'systemd required' >&2; exit 1; }
 command -v apt-get >/dev/null || { echo 'Debian/Ubuntu only' >&2; exit 1; }
-id cfsm >/dev/null 2>&1 || { echo 'Existing cfsm probe user not found; install CFSM agent first' >&2; exit 1; }
-
-HOME_CFSM="$(getent passwd cfsm | cut -d: -f6)"
-test -r "$HOME_CFSM/.cf-probe/config.conf" || { echo 'CFSM agent credentials not found' >&2; exit 1; }
+# Preserve root CFSM config, but use a separate unprivileged OS account.
+test -r /etc/config/cf-probe/config.conf || { echo 'Install the main cf-probe first' >&2; exit 1; }
+if ! id cfsm-quality >/dev/null 2>&1; then
+    useradd --system --home-dir /var/lib/cfsm-quality --shell /usr/sbin/nologin --no-create-home cfsm-quality
+fi
 install -d -m 0755 -o root -g root /opt/cfsm-quality
-install -d -m 0700 -o cfsm -g cfsm /var/lib/cfsm-quality
+install -d -m 0700 -o cfsm-quality -g cfsm-quality /var/lib/cfsm-quality
+install -d -m 0750 -o root -g cfsm-quality /etc/cfsm-quality
+grep -E '^(SERVER_ID|SECRET)=' /etc/config/cf-probe/config.conf > /etc/cfsm-quality/credentials.conf
+test "$(grep -c '^SERVER_ID=' /etc/cfsm-quality/credentials.conf)" -eq 1
+test "$(grep -c '^SECRET=' /etc/cfsm-quality/credentials.conf)" -eq 1
+chown root:cfsm-quality /etc/cfsm-quality/credentials.conf
+chmod 0640 /etc/cfsm-quality/credentials.conf
 
 apt-get update -qq
 apt-get install -y -qq --no-install-recommends python3 curl jq bc dnsutils netcat-openbsd iproute2 iperf3 traceroute ca-certificates libcap2-bin
@@ -56,9 +63,9 @@ After=network-online.target
 Wants=network-online.target
 [Service]
 Type=oneshot
-User=cfsm
-Group=cfsm
-Environment=HOME=$HOME_CFSM
+User=cfsm-quality
+Group=cfsm-quality
+Environment=HOME=/var/lib/cfsm-quality
 WorkingDirectory=/var/lib/cfsm-quality
 ExecStart=/usr/bin/python3 /opt/cfsm-quality/collector.py
 TimeoutStartSec=3h
