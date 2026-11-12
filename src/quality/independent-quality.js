@@ -14,6 +14,9 @@ const clean = x => obj(x) ? x : {};
 const validHours = v => Number.isInteger(v) && v >= 1 && v <= 720;
 const bool = x => x === true || x === false;
 const bounded = (x, max=100) => typeof x === 'string' ? x.slice(0,max) : null;
+// Configured CN region OR authenticated Cloudflare CN ingress disables diagnostics.
+const countryCode = x => typeof x === 'string' ? x.trim().toUpperCase() : '';
+const isDomestic = (region,observed) => countryCode(region)==='CN'||countryCode(observed)==='CN';
 
 export function validateDiagnosticReport(x, sourceIp, now=Date.now()) {
   if (!obj(x) || x.schema_version !== 1 || !KINDS.has(x.kind) || !goodId(x.run_id)) throw new QualityError('invalid_report');
@@ -57,7 +60,7 @@ const isVisible = (server,admin) => admin || ![true,1,'1','true'].includes(serve
 const hasSiteAccess = (settings,admin) => admin || settings.is_public === 'true' || settings.is_public === true;
 const safeServer = async(db,id) => {
   if (!goodId(id)) throw new QualityError('invalid_server_id');
-  const s=await db.prepare('SELECT id,name,is_hidden FROM servers WHERE id=?').bind(id).first();
+  const s=await db.prepare('SELECT id,name,is_hidden,region FROM servers WHERE id=?').bind(id).first();
   if (!s) throw new QualityError('server_not_found',404);
   return s;
 };
@@ -70,9 +73,9 @@ async function agentAuth(request, env) {
   const a=await toHash(token),b=await toHash(env.API_SECRET);
   let different=0;for(let i=0;i<a.length;i++)different|=a[i]^b[i];
   if(different) throw new QualityError('unauthorized',401);
-  await safeServer(env.DB,id);
+  const server=await safeServer(env.DB,id);
   const source=request.headers.get('CF-Connecting-IP')||null;
-  return { id, source: source && isIP(source) ? source : null };
+  return { id, server, source: source && isIP(source) ? source : null };
 }
 async function readPayload(request) {
   const n=Number(request.headers.get('Content-Length'));
@@ -89,12 +92,13 @@ const lookupOpts = async(db,key) => {
   const row=await db.prepare('SELECT value FROM cfsm_quality_options WHERE key=?').bind(key).first();
   try {return row ? JSON.parse(row.value) : null;} catch{return null;}
 };
-export async function qualitySchedule(db,id) {
+export async function qualitySchedule(db,id,region=null,sourceCountry=null) {
   const global=await lookupOpts(db,'global');
   const local=await lookupOpts(db,'server:'+id);
   const v={...DEFAULTS,...clean(global),...clean(local)};
-  const [ipr,nr]=await Promise.all([lookupOpts(db,'request:'+id+':ip'),lookupOpts(db,'request:'+id+':net')]);
-  return {enabled:v.enabled!==false,ip_hours:validHours(v.ip_hours)?v.ip_hours:DEFAULTS.ip_hours,net_hours:validHours(v.net_hours)?v.net_hours:DEFAULTS.net_hours,requested:{ip:typeof ipr==='number'?ipr:0,net:typeof nr==='number'?nr:0}};
+  const [ipr,nr,recordedCountry]=await Promise.all([lookupOpts(db,'request:'+id+':ip'),lookupOpts(db,'request:'+id+':net'),lookupOpts(db,'country:'+id)]);
+  const domestic=isDomestic(region,sourceCountry)||isDomestic(null,recordedCountry);
+  return {enabled:!domestic&&v.enabled!==false,skip_reason:domestic?'country_cn':null,ip_hours:validHours(v.ip_hours)?v.ip_hours:DEFAULTS.ip_hours,net_hours:validHours(v.net_hours)?v.net_hours:DEFAULTS.net_hours,requested:{ip:typeof ipr==='number'?ipr:0,net:typeof nr==='number'?nr:0}};
 }
 async function qualityUpload(request,env){
   const {id,source}=await agentAuth(request,env);
