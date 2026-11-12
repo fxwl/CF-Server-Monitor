@@ -1,0 +1,33 @@
+/* AnotherLuminaPlus: native-looking independent IPQuality / NetQuality panels. */
+.cfsmq-card-ip{font-size:11px;line-height:1.3;color:var(--muted-foreground,#64748b);font-weight:500;white-space:nowrap;letter-spacing:0}
+.cfsmq-card{min-width:0;margin:8px 0 0;padding:8px 10px;border:1px solid color-mix(in srgb,currentColor 10%,transparent);border-radius:10px;background:color-mix(in srgb,currentColor 3%,transparent)}
+.cfsmq-card-head{display:flex;align-items:center;justify-content:space-between;gap:9px;color:inherit;font-size:12px}
+.cfsmq-card-head strong{font-size:12px;font-weight:650}
+.cfsmq-card-head small,.cfsmq-muted,.cfsmq-detail-time{font-size:11px;color:var(--muted-foreground,#64748b)}
+.cfsmq-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.cfsmq-chip{display:inline-flex;gap:3px;max-width:100%;padding:3px 6px;border-radius:6px;background:color-mix(in srgb,currentColor 6%,transparent);font-size:10px;line-height:1.5;overflow-wrap:anywhere}
+.cfsmq-chip b{font-weight:600}
+.cfsmq-good{color:#159c68;background:rgba(16,185,129,.09)}
+.cfsmq-bad{color:#df5656;background:rgba(239,68,68,.08)}
+.cfsmq-detail{margin:0 0 20px;min-width:0}
+.cfsmq-detail-time{margin:5px 0 0}
+.cfsmq-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:12px 16px 16px;min-width:0}
+.cfsmq-block{min-width:0;align-self:start;border:1px solid color-mix(in srgb,currentColor 13%,transparent);border-radius:12px;padding:10px 12px;background:color-mix(in srgb,currentColor 2%,transparent);font-size:12px}
+.cfsmq-block>summary{font-size:13px;font-weight:650;cursor:pointer;padding:3px 0;list-style-position:inside}
+.cfsmq-block[open]>summary{margin-bottom:9px;border-bottom:1px solid color-mix(in srgb,currentColor 10%,transparent);padding-bottom:8px}
+.cfsmq-block .cfsmq-block{margin:7px 0}
+.cfsmq-pairs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:4px 12px;min-width:0}
+.cfsmq-pair{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid color-mix(in srgb,currentColor 9%,transparent);min-width:0}
+.cfsmq-pair span{color:var(--muted-foreground,#64748b);white-space:nowrap}
+.cfsmq-pair strong{font-weight:550;text-align:right;overflow-wrap:anywhere;min-width:0}
+.cfsmq-scroll{overflow:auto;max-width:100%;max-height:420px}
+.cfsmq-table{width:100%;border-collapse:collapse;font-size:11px;min-width:360px}
+.cfsmq-table th,.cfsmq-table td{text-align:left;padding:7px 8px;border-bottom:1px solid color-mix(in srgb,currentColor 8%,transparent);white-space:normal;overflow-wrap:anywhere}
+.cfsmq-table th{white-space:nowrap;color:var(--muted-foreground,#64748b);font-weight:600}
+.cfsmq-raw{white-space:pre-wrap;overflow-wrap:anywhere;max-height:470px;overflow:auto;font:11px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;padding:10px;background:color-mix(in srgb,currentColor 4%,transparent);border-radius:8px}
+.cfsmq-detail .instance-panel-header{margin-bottom:2px}
+@media(max-width:920px){.cfsmq-detail-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:560px){.cfsmq-detail-grid{padding:10px;gap:9px}.cfsmq-block{padding:9px}.cfsmq-card{padding:7px}.cfsmq-card-ip{font-size:10px;white-space:normal}}
+
+.cfsmq-retry{margin-top:10px;border:1px solid color-mix(in srgb,currentColor 20%,transparent);border-radius:8px;background:color-mix(in srgb,currentColor 6%,transparent);font:inherit;cursor:pointer;padding:7px 12px;color:inherit}
+.cfsmq-retry:hover{background:color-mix(in srgb,currentColor 11%,transparent)}
