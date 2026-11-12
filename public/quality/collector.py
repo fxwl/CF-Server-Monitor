@@ -61,6 +61,7 @@ return 0
 fi
 done
 }
+'''
 
 def vendor_runtime_script(path,kind,folder):
     if path.is_symlink() or not path.is_file() or kind not in VENDOR_BLOBS:
