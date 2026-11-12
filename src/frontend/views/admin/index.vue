@@ -92,6 +92,7 @@
             :class="{ active: activeTab === 'database' }"
             @click="activeTab = 'database'"
           >{{ trans.dbManagement }}</button>
+          <button class="tab-btn" :class="{ active: activeTab === 'quality' }" @click="activeTab = 'quality'">IP / 网络检测</button>
           <button
             class="tab-btn"
             :class="{ active: activeTab === 'themeStore' }"
@@ -159,6 +160,7 @@
           @alert-message="alertMessage = $event"
         />
 
+        <IndependentQualitySettings :active-tab="activeTab" :servers="servers" :api-index="selectedApiIndex" />
         <DatabasePanel
           :trans="trans"
           :active-tab="activeTab"
@@ -604,6 +606,7 @@ import AdminLogin from './components/AdminLogin.vue'
 import ServerTable from './components/ServerTable.vue'
 import SettingsPanel from './components/SettingsPanel.vue'
 import DatabasePanel from './components/DatabasePanel.vue'
+import IndependentQualitySettings from './components/IndependentQualitySettings.vue'
 import ThemeStorePanel from './components/ThemeStorePanel.vue'
 import DonationPanel from './components/DonationPanel.vue'
 import EditServerModal from './components/EditServerModal.vue'
