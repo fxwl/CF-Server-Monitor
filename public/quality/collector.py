@@ -35,7 +35,7 @@ VENDOR_BLOBS={
     'net':'3f53747f00e6a00fe39534280a1c1dc6b71abbad',
 }
 IPV4_COMPAT=r'''cfsm_ipv4_literal() {
-# Avoid the Bash =~ regex engine during IP discovery; rely on AWK.
+# Avoid Bash ERE matching during IP discovery; rely on AWK.
 # The authenticated source IPv4 is also validated using Python ipaddress.
 printf '%s\n' "$1" | awk -F. '
 NF!=4 {exit 1}
