@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""Test a narrowly scoped runtime fix for the two pinned NQ/IP scripts."""
+import hashlib
+import importlib.util
+import os
+from pathlib import Path
+import subprocess
+import tempfile
+import unittest
+from unittest.mock import patch
+
+BASE=Path(__file__).resolve().parents[1]
+spec=importlib.util.spec_from_file_location('cfsm_quality_collector',BASE/'public'/'quality'/'collector.py')
+collector=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(collector)
+
+class UpstreamIPv4Tests(unittest.TestCase):
+    def _exercise_bash(self,trace_value,plain_value,expected):
+        with tempfile.TemporaryDirectory() as root:
+            directory=Path(root)
+            bindir=directory/'bin'
+            bindir.mkdir()
+            curl=bindir/'curl'
+            curl.write_text(
+                '#!/bin/sh\n'
+                'case " $* " in\n'
+                '  *cdn-cgi/trace*) printf "%s\\n" "$TRACE_VALUE";;\n'
+                '  *) printf "%s\\n" "$PLAIN_VALUE";;\n'
+                'esac\n'
+            )
+            curl.chmod(0o755)
+            env={**os.environ,'PATH':str(bindir)+':'+os.environ.get('PATH',''),
+                 'TRACE_VALUE':trace_value,'PLAIN_VALUE':plain_value}
+            code=collector.IPV4_COMPAT+'\nCurlARG=""\nget_ipv4\nprintf "ip=%s\\n" "$IPV4"\n'
+            p=subprocess.run(['/bin/bash','-c',code],capture_output=True,text=True,env=env,timeout=6)
+            self.assertEqual(p.returncode,0,p.stderr)
+            self.assertEqual(p.stdout.strip(),'ip='+expected)
+
+    def test_cloudflare_trace_is_preferred_and_validated(self):
+        self._exercise_bash('fl=abc\nip=198.51.100.24\ncolo=LAX',
+                            '203.0.113.42','198.51.100.24')
+
+    def test_https_ip_endpoint_is_fallback(self):
+        self._exercise_bash('error=blocked','203.0.113.42','203.0.113.42')
+
+    def test_invalid_ipv4_not_accepted(self):
+        self._exercise_bash('ip=redirect','HTTP/1.1 301 Moved Permanently','')
+
+    def test_vendor_copy_is_patched_not_original(self):
+        # Fake minimal original with the same signature as both pinned scripts.
+        original=b'#!/bin/bash\nget_ipv4(){\nlocal API_NET=("ip.sb")\nresponse=$(curl $CurlARG -s4 --max-time 2 "$p")\n}\n'
+        digest=hashlib.sha1(b'blob '+str(len(original)).encode()+b'\0'+original).hexdigest()
+        with tempfile.TemporaryDirectory() as root:
+            directory=Path(root)
+            path=directory/'ip.sh'
+            path.write_bytes(original)
+            work=directory/'work'
+            work.mkdir()
+            with patch.dict(collector.VENDOR_BLOBS,{'ip':digest}):
+                generated=collector.vendor_runtime_script(path,'ip',work)
+            self.assertEqual(path.read_bytes(),original)
+            self.assertNotIn(b'--max-time 2',generated.read_bytes())
+            self.assertIn(b'https://www.cloudflare.com/cdn-cgi/trace',generated.read_bytes())
+            self.assertEqual(generated.stat().st_mode & 0o777,0o700)
+            p=subprocess.run(['/bin/bash','-n',str(generated)],capture_output=True,text=True)
+            self.assertEqual(p.returncode,0,p.stderr)
+
+    def test_vendor_checksum_mismatch_fails_closed(self):
+        with tempfile.TemporaryDirectory() as root:
+            directory=Path(root)
+            path=directory/'ip.sh'
+            path.write_text('not official content')
+            with self.assertRaisesRegex(ValueError,'checksum_mismatch'):
+                collector.vendor_runtime_script(path,'ip',directory)
+
+if __name__=='__main__':
+    unittest.main()
