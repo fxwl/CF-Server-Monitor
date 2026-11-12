@@ -133,3 +133,81 @@
   .home-dashboard .mao-stat-caption{font-size:10px}
   .home-dashboard .mao-progress-head{align-items:flex-start;flex-wrap:wrap}
 }
+
+/* v6.1 cluster-left layout: primary cluster overview on the left, six compact
+   metric cards on the right. Keep React markup and existing user settings. */
+@media (min-width:1180px){
+  .home-dashboard .mao-dashboard-hero:not([data-stat-cards="0"]):not([data-stat-cards="1"]){
+    display:grid;
+    grid-template-columns:minmax(0,1.42fr) minmax(0,1fr);
+    gap:14px;
+    align-items:stretch;
+  }
+  .home-dashboard .mao-dashboard-hero:not([data-stat-cards="0"]):not([data-stat-cards="1"])>.mao-hero-side{
+    grid-column:1;
+    grid-row:1;
+    min-width:0;
+  }
+  .home-dashboard .mao-dashboard-hero:not([data-stat-cards="0"]):not([data-stat-cards="1"])>.mao-hero-main{
+    grid-column:2;
+    grid-row:1;
+    min-width:0;
+    align-self:stretch;
+  }
+  .home-dashboard .mao-stat-grid{gap:8px}
+  .home-dashboard .mao-stat-card{
+    min-height:112px;
+    padding:11px 12px;
+    gap:6px;
+    border-radius:11px;
+  }
+  .home-dashboard .mao-stat-label{font-size:11.5px}
+  .home-dashboard .mao-stat-value{font-size:clamp(20px,1.45vw,24px)}
+  .home-dashboard .mao-stat-caption{font-size:10.5px}
+  .home-dashboard .mao-progress-container{padding:16px;gap:12px}
+  .home-dashboard .mao-progress-title{font-size:16px}
+  .home-dashboard .mao-progress-big-num{font-size:32px}
+  .home-dashboard .mao-realtime-chart-canvas-wrap{height:126px}
+}
+/* Narrow desktop: two cards per row avoid cramped 140px-wide metric cards. */
+@media (min-width:1180px) and (max-width:1359px){
+  .home-dashboard .mao-stat-grid[data-cards="6"]{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    grid-template-rows:repeat(3,minmax(0,1fr));
+  }
+  .home-dashboard .mao-progress-container:has(.mao-network-section){
+    display:flex;
+    flex-direction:column;
+  }
+  .home-dashboard .mao-realtime-chart-canvas-wrap{height:112px}
+}
+/* Wide desktop: the enlarged left panel shows online status and two live
+   network charts side by side, aligning with the compact two-row metric grid. */
+@media (min-width:1360px){
+  .home-dashboard .mao-progress-container:has(.mao-network-section){
+    display:grid;
+    grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr);
+    grid-template-rows:auto minmax(0,1fr);
+    align-items:stretch;
+  }
+  .home-dashboard .mao-progress-container:has(.mao-network-section)>.mao-progress-head{
+    grid-column:1/-1;
+    grid-row:1;
+  }
+  .home-dashboard .mao-progress-container:has(.mao-network-section)>.mao-progress-section:not(.mao-network-section){
+    grid-column:1;
+    grid-row:2;
+    justify-content:center;
+    gap:12px;
+  }
+  .home-dashboard .mao-progress-container:has(.mao-network-section)>.mao-network-section{
+    grid-column:2;
+    grid-row:2;
+  }
+  .home-dashboard .mao-realtime-chart-canvas-wrap{height:138px}
+}
+/* Tablet/mobile: status first, metric cards follow; no horizontal overflow. */
+@media (max-width:1179px){
+  .home-dashboard .mao-dashboard-hero>.mao-hero-side{order:-1}
+  .home-dashboard .mao-dashboard-hero>.mao-hero-main{order:1}
+}
