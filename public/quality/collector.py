@@ -78,6 +78,43 @@ def verified_source_ipv4(value):
     except (ValueError,TypeError):
         return None
 
+NET_ROUTE_FALLBACK=r'''cfsm_route_fallback(){
+local domain="$1" rnum="$2" rmode="$3" flag="-T"
+command -v traceroute >/dev/null 2>&1 || return 0
+[[ "$rmode" == "2" ]]&&flag="-U"
+# IP-only fallback: don't invent missing ASN or geolocation metadata.
+timeout 35s traceroute -n "$flag" -p 80 -q 1 -m 20 -w 1 "$domain" 2>/dev/null |
+awk -v rnum="$rnum" '
+  NR>1 && $1 ~ /^[0-9]+$/ {
+    hop=$1; ip=$2; ms="-"
+    n=split(ip,octets,".")
+    if(n!=4 || ip ~ /[^0-9.]/)next
+    for(i=3;i<NF;i++)if($(i+1)=="ms"){ms=$i "ms";break}
+    printf "|%s|%s|%s|%s|-|-|-|\n",rnum,hop,ms,ip
+  }'
+}
+'''
+
+def adapt_net_routes(text):
+    # The full pinned script has a self-contained nexttrace_route function.
+    # Limit retry amplification and fall back to system traceroute where
+    # NextTrace is unavailable or cannot reach its route service from China.
+    match=re.search(r'(?ms)^nexttrace_route\(\)\{\n.*?^\}\n',text)
+    if not match:raise ValueError('upstream_net_route_signature_changed')
+    old=match.group(0)
+    if old.count('local max_retries=10')!=1 or old.count('local retry_delay=5')!=1:
+        raise ValueError('upstream_net_route_signature_changed')
+    changed=old.replace('local max_retries=10','local max_retries=2',1)
+    changed=changed.replace('local retry_delay=5','local retry_delay=2',1)
+    marker='output=$(echo "$output"|sed '
+    if changed.count(marker)!=1:raise ValueError('upstream_net_route_signature_changed')
+    changed=changed.replace(marker,
+        'if [[ $output != *"traceroute to"* ]];then\n'
+        'cfsm_route_fallback "$domain" "$rnum" "$rmode"\n'
+        'return 0\n'
+        'fi\n'+marker,1)
+    return text[:match.start()]+NET_ROUTE_FALLBACK+changed+text[match.end():]
+
 def vendor_runtime_script(path,kind,folder):
     if path.is_symlink() or not path.is_file() or kind not in VENDOR_BLOBS:
         raise ValueError('missing_pinned_script_'+kind)
@@ -92,6 +129,7 @@ def vendor_runtime_script(path,kind,folder):
         raise ValueError('upstream_ipv4_signature_changed_'+kind)
     patched,count=re.subn(pattern,lambda _:IPV4_COMPAT,text,count=1)
     if count!=1:raise ValueError('upstream_ipv4_patch_failed_'+kind)
+    if kind=='net':patched=adapt_net_routes(patched)
     script=folder/(kind+'-runtime.sh')
     script.write_text(patched,encoding='utf-8')
     script.chmod(0o700)
