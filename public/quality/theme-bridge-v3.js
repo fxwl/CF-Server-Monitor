@@ -112,7 +112,11 @@
       const compactChips = card.querySelector('.compact-node-chip-row');
       if (stack) stack.append(summary);
       else if (compactChips) compactChips.after(summary);
-      else card.querySelector('.server-card-content')?.append(summary) || card.append(summary);
+      else {
+        const body = card.querySelector('.server-card-content');
+        if (body) body.append(summary);
+        else card.append(summary);
+      }
     }
   }
   function addPairs(parent, rows) {
