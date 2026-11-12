@@ -29,8 +29,8 @@ ANSI=re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
 IP_SHA='8e685686e1df89119d9aeb182a9dedbc88da19e3'
 NET_SHA='e91cd4963c2676da0e12bcece8ccb145e04a6735'
 
-def note(message,**extra):
-    print(json.dumps({'event':message,**extra},ensure_ascii=False),flush=True)
+def note(event,**extra):
+    print(json.dumps({'event':event,**extra},ensure_ascii=False),flush=True)
 
 def creds():
     if CONF.is_symlink() or not CONF.is_file():
@@ -78,10 +78,27 @@ def request(path,server,secret,payload=None):
     headers={'Accept':'application/json','Authorization':'Bearer '+secret,'X-CFSM-Server-ID':server}
     if payload is not None: headers['Content-Type']='application/json'
     req=urllib.request.Request(URL+path,data=data,headers=headers)
-    with OPENER.open(req,timeout=45) as resp:
-        body=resp.read(128*1024)
-        if resp.read(1):raise ValueError('api_response_too_large')
-    return json.loads(body)
+    try:
+        with OPENER.open(req,timeout=45) as resp:
+            body=resp.read(128*1024)
+            if resp.read(1):raise ValueError('api_response_too_large')
+        return json.loads(body)
+    except urllib.error.HTTPError as exc:
+        content_type=exc.headers.get('Content-Type','').split(';',1)[0].lower()
+        api_error=None
+        if content_type=='application/json':
+            try:
+                parsed=json.loads(exc.read(512))
+                if isinstance(parsed,dict):
+                    api_error=str(parsed.get('error') or parsed.get('code') or '')[:120]
+            except (ValueError,UnicodeDecodeError,OSError):
+                pass
+        note('api_http_error',endpoint=path,status=exc.code,
+             server=exc.headers.get('Server','')[:60],
+             cf_ray=exc.headers.get('CF-Ray','')[:100],
+             cf_mitigated=exc.headers.get('cf-mitigated','')[:60],
+             content_type=content_type[:70],api_error=api_error)
+        raise
 
 def read_state():
     path=STATE/'last-run.json'
@@ -207,5 +224,5 @@ def run():
 if __name__=='__main__':
     try:sys.exit(run())
     except Exception as e:
-        note('fatal',error=type(e).__name__,message=str(e)[:120] if isinstance(e,ValueError) else None)
+        note('fatal',error=type(e).__name__,detail=str(e)[:120] if isinstance(e,(ValueError,urllib.error.HTTPError)) else None)
         sys.exit(1)
