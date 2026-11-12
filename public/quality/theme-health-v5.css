@@ -1,0 +1,88 @@
+/* CFSM AnotherLuminaPlus overlay: health verdicts, homepage strip, calmer hero. */
+:root{--cfsmh-ok:#14a66a;--cfsmh-warn:#d9901a;--cfsmh-bad:#d85560;--cfsmh-off:#8a94a3}
+
+/* 1. 首页头部压缩：问候语缩成一行，去掉重复的说明文字，把空间让给总览数字。 */
+.mao-hero-header{gap:4px}
+.mao-hero-subtitle,.mao-section-sub{display:none}
+.mao-hero-greeting{font-size:18px;line-height:1.3}
+.mao-section-title-wrap{display:none}
+.mao-section-header{margin-bottom:8px}
+
+/* 2. 健康筛选条：一眼看出多少台正常 / 注意 / 异常 / 离线，点击筛选。 */
+.cfsmh-strip{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;margin:0 0 16px;padding:10px 14px;border-radius:12px;background:var(--surface-a,#fff);border:1px solid var(--border,#e5e9ef)}
+.cfsmh-strip-head{display:flex;align-items:baseline;gap:10px;padding-left:10px;border-left:4px solid var(--cfsmh-ok)}
+.cfsmh-strip-head[data-level="warn"]{border-color:var(--cfsmh-warn)}
+.cfsmh-strip-head[data-level="bad"]{border-color:var(--cfsmh-bad)}
+.cfsmh-strip-head strong{font-size:15px;font-weight:700;color:var(--text-primary,#242831)}
+.cfsmh-strip-head span{font-size:12px;color:var(--text-tertiary,#8490a0)}
+.cfsmh-strip-btns{display:flex;flex-wrap:wrap;gap:6px}
+.cfsmh-chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:14px;border:1px solid var(--border,#e5e9ef);background:transparent;color:var(--text-secondary,#5d6878);font-size:12px;cursor:pointer;font-variant-numeric:tabular-nums}
+.cfsmh-chip i{width:8px;height:8px;border-radius:50%;background:var(--cfsmh-ok)}
+.cfsmh-chip[data-level="warn"] i{background:var(--cfsmh-warn)}
+.cfsmh-chip[data-level="bad"] i{background:var(--cfsmh-bad)}
+.cfsmh-chip[data-level="off"] i{background:var(--cfsmh-off)}
+.cfsmh-chip b{font-size:13px;font-weight:700;color:var(--text-primary,#242831)}
+.cfsmh-chip:disabled{opacity:.45;cursor:default}
+.cfsmh-chip[aria-pressed="true"]{border-color:var(--text-primary,#242831);background:var(--hover-bg,#eef3fb)}
+.cfsmh-chip:not(:disabled):hover{background:var(--hover-bg,#eef3fb)}
+.cfsmh-all{color:var(--cfsmq-blue,#3c78d7)}
+.cfsmh-hidden{display:none!important}
+
+/* 3. 每张卡片：顶部色条 + 状态徽章 + 一句话原因。 */
+[data-cfsmh]{position:relative}
+[data-cfsmh]::before{content:"";position:absolute;left:16px;right:16px;top:0;height:3px;border-radius:0 0 3px 3px;background:var(--cfsmh-ok);opacity:.85;pointer-events:none;z-index:1}
+[data-cfsmh="warn"]::before{background:var(--cfsmh-warn)}
+[data-cfsmh="bad"]::before{background:var(--cfsmh-bad)}
+[data-cfsmh="off"]::before{background:var(--cfsmh-off)}
+.cfsmh-badge{flex:none;display:inline-flex;align-items:center;height:18px;padding:0 7px;margin-left:6px;border-radius:9px;font-size:10px;font-weight:700;letter-spacing:.02em;color:var(--cfsmh-ok);background:rgba(20,166,106,.12)}
+.cfsmh-badge[data-level="warn"]{color:var(--cfsmh-warn);background:rgba(217,144,26,.14)}
+.cfsmh-badge[data-level="bad"]{color:var(--cfsmh-bad);background:rgba(216,85,96,.13)}
+.cfsmh-badge[data-level="off"]{color:var(--cfsmh-off);background:rgba(138,148,163,.16)}
+.cfsmh-why{margin:6px 0 0;padding:5px 10px;border-radius:8px;font-size:11px;font-weight:600;color:var(--cfsmh-warn);background:rgba(217,144,26,.1)}
+.cfsmh-why[data-level="bad"]{color:var(--cfsmh-bad);background:rgba(216,85,96,.1)}
+
+/* 4. 超阈值的单项指标数字直接变色。 */
+.metric-item.cfsmh-warn .tabular .font-semibold{color:var(--cfsmh-warn)}
+.metric-item.cfsmh-bad .tabular .font-semibold{color:var(--cfsmh-bad)}
+.traffic-quota.cfsmh-warn .traffic-quota-remain{color:var(--cfsmh-warn)}
+.traffic-quota.cfsmh-bad .traffic-quota-remain{color:var(--cfsmh-bad)}
+
+@media(max-width:600px){
+  .cfsmh-strip{padding:10px 12px}
+  .cfsmh-strip-btns{width:100%}
+  .cfsmh-chip{flex:1 1 0;justify-content:center;padding:0 6px}
+  .cfsmh-chip.cfsmh-all{flex-basis:100%}
+}
+
+/* 5. 详情页健康总评：一句话结论 + 全量关键指标（自适应列数，全部直接展示）。 */
+.cfsmh-detail{margin:0 0 12px;padding:12px 14px 14px;border-radius:12px;background:var(--surface-a,#fff);border:1px solid var(--border,#e5e9ef);border-top:4px solid var(--cfsmh-ok)}
+.cfsmh-detail[data-level="warn"]{border-top-color:var(--cfsmh-warn)}
+.cfsmh-detail[data-level="bad"]{border-top-color:var(--cfsmh-bad)}
+.cfsmh-detail[data-level="off"]{border-top-color:var(--cfsmh-off)}
+.cfsmh-detail-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;margin-bottom:12px}
+.cfsmh-detail-title{display:flex;align-items:center;gap:8px}
+.cfsmh-detail-title i{width:10px;height:10px;border-radius:50%;background:var(--cfsmh-ok)}
+.cfsmh-detail[data-level="warn"] .cfsmh-detail-title i{background:var(--cfsmh-warn)}
+.cfsmh-detail[data-level="bad"] .cfsmh-detail-title i{background:var(--cfsmh-bad)}
+.cfsmh-detail[data-level="off"] .cfsmh-detail-title i{background:var(--cfsmh-off)}
+.cfsmh-detail-title strong{font-size:17px;font-weight:700;color:var(--text-primary,#242831)}
+.cfsmh-detail-why{font-size:12px;color:var(--text-secondary,#5d6878);min-width:0}
+.cfsmh-detail[data-level="warn"] .cfsmh-detail-why{color:var(--cfsmh-warn)}
+.cfsmh-detail[data-level="bad"] .cfsmh-detail-why{color:var(--cfsmh-bad)}
+.cfsmh-detail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.cfsmh-detail-tile{display:flex;flex-direction:column;gap:2px;min-width:0;padding:10px 12px;border-radius:10px;background:var(--surface-elev,#f3f5f8);border-left:3px solid var(--border,#e5e9ef);font-variant-numeric:tabular-nums}
+.cfsmh-detail-tile.is-ok{border-left-color:var(--cfsmh-ok)}
+.cfsmh-detail-tile.is-warn{border-left-color:var(--cfsmh-warn)}
+.cfsmh-detail-tile.is-bad{border-left-color:var(--cfsmh-bad)}
+.cfsmh-detail-tile.is-off{border-left-color:var(--cfsmh-off)}
+.cfsmh-detail-label{font-size:11px;color:var(--text-secondary,#6b7685)}
+.cfsmh-detail-value{font-size:22px;font-weight:700;line-height:1.2;color:var(--text-primary,#242831);overflow-wrap:anywhere}
+.cfsmh-detail-tile.is-text .cfsmh-detail-value{font-size:14px;line-height:1.5}
+.cfsmh-detail-tile.is-warn .cfsmh-detail-value{color:var(--cfsmh-warn)}
+.cfsmh-detail-tile.is-bad .cfsmh-detail-value{color:var(--cfsmh-bad)}
+.cfsmh-detail-sub{font-size:10px;color:var(--text-tertiary,#8490a0);overflow-wrap:anywhere}
+@media(max-width:600px){
+  .cfsmh-detail{padding:10px 12px 12px}
+  .cfsmh-detail-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cfsmh-detail-value{font-size:18px}
+}

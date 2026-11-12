@@ -196,3 +196,27 @@
   .cfsmq-approved-top,.cfsmq-two,.cfsmq-three{gap:8px}
   .cfsmq-infobox,.cfsmq-plain-panel,.cfsmq-matrix,.cfsmq-mail,.cfsmq-routes,.cfsmq-trend{padding:10px 12px}
 }
+
+/* v5.1 (from live screenshots): blend homepage panel into the card like its other hairline sections. */
+.cfsmq-home-final{margin:12px 0 0;padding:12px 0 0;border:0;border-top:1px solid var(--cfsmq-border);border-radius:0;background:transparent}
+.cfsmq-home-provider:last-child,.cfsmq-home-provider-grid>.cfsmq-home-provider:nth-last-child(2):nth-child(odd){border-bottom:0}
+@container (max-width:395px){.cfsmq-home-provider-grid>.cfsmq-home-provider:nth-last-child(2){border-bottom:1px solid var(--hairline,#eef1f5)}}
+/* Collapse the empty trend plot instead of reserving a big blank box. */
+.cfsmq-trend-plot:has(.cfsmq-no-trend){height:auto;min-height:56px}
+
+/* v5.2 key-metric tiles (home + detail), auto-fit to any width. */
+.cfsmq-home-tiles,.cfsmq-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,120px),1fr));gap:8px}
+.cfsmq-home-tiles{margin:8px 0 12px}
+.cfsmq-home-tile,.cfsmq-tile{display:flex;flex-direction:column;gap:2px;min-width:0;padding:8px 10px;border-radius:10px;background:var(--surface-elev,#f3f5f8);border-left:3px solid var(--cfsmq-border);font-variant-numeric:tabular-nums}
+.cfsmq-tile{background:var(--surface-a,#fff)}
+.cfsmq-home-tile-label,.cfsmq-tile-label{font-size:11px;color:var(--text-secondary,#6b7685)}
+.cfsmq-home-tile-value,.cfsmq-tile-value{font-size:18px;font-weight:700;line-height:1.25;color:var(--cfsmq-ink)}
+.cfsmq-home-tile-sub,.cfsmq-tile-sub{font-size:10px;color:var(--cfsmq-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.is-good{border-left-color:#14a66a}.is-good>strong{color:#14a66a}
+.is-warn{border-left-color:#e0a23a}.is-warn>strong{color:#c98a1c}
+.is-bad{border-left-color:#d85560}.is-bad>strong{color:#d85560}
+.cfsmq-home-media-status.is-good,.cfsmq-home-media-status.is-bad{border-left:0}
+/* Detail top row: basics 1 part, key metrics wider; stacks on narrow screens. */
+.cfsmq-approved-top{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr)}
+.cfsmq-final-section .cfsmq-plain-panel .cfsmq-table th:last-child{text-align:right}
+@media(max-width:1050px){.cfsmq-approved-top{grid-template-columns:minmax(0,1fr)}}

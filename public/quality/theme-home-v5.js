@@ -1,8 +1,8 @@
 /* CFSM AnotherLuminaPlus: final compact homepage IP quality panel (reference: 2026-11-12 approved mockup). */
 (() => {
   'use strict';
-  if (window.__CFSMQualityHomeFinal4) return;
-  window.__CFSMQualityHomeFinal4 = true;
+  if (window.__CFSMQualityHomeFinal5) return;
+  window.__CFSMQualityHomeFinal5 = true;
   let servers = {};
   let blocked = new Set();
   let version = 0;
@@ -100,18 +100,22 @@
     const grid=maker('div','cfsmq-home-provider-grid');
     providerList(info).forEach(k=>grid.append(providerItem(info,k)));
     root.append(grid);
-    const divider=maker('div','cfsmq-home-divider');
-    root.append(divider);
     const media=info.media||{};
-    const present=[...orderedMedia.filter(k=>Object.prototype.hasOwnProperty.call(media,k)),
-      ...Object.keys(media).filter(k=>!orderedMedia.includes(k))];
-    const count=present.filter(k=>String(media[k]?.Status||'').includes('解锁')).length;
-    const mediaHead=maker('div','cfsmq-home-media-head');
-    mediaHead.append(maker('strong','','流媒体 / AI 解锁'),maker('span','cfsmq-muted',count+'/'+present.length));
-    root.append(mediaHead);
-    const mediaGrid=maker('div','cfsmq-home-media-grid');
-    present.forEach(k=>mediaGrid.append(mediaItem(k,media[k])));
-    root.append(mediaGrid);
+    const mk=Object.keys(media);
+    const okNames=mk.filter(k=>String(media[k]?.Status||'').includes('解锁')).map(k=>mediaLabels[k]||k);
+    const nums=Object.values(info.scores||{}).map(v=>Number(String(v).replace('%','').replace(',','.'))).filter(Number.isFinite);
+    const worst=nums.length?Math.max(...nums):null;
+    const tiles=maker('div','cfsmq-home-tiles');
+    const tile=(label,value,tone,sub)=>{
+      const t=maker('div','cfsmq-home-tile'+(tone?' is-'+tone:''));
+      t.append(maker('span','cfsmq-home-tile-label',label),maker('strong','cfsmq-home-tile-value',value));
+      if(sub){const s=maker('small','cfsmq-home-tile-sub',sub);s.title=sub;t.append(s);}
+      tiles.append(t);
+    };
+    tile('最高风险分',worst===null?'—':String(worst),worst===null?'':worst===0?'good':worst>=50?'bad':'warn',nums.length+' 个机构');
+    tile('流媒体 / AI',mk.length?okNames.length+' / '+mk.length:'—',
+      !mk.length?'':okNames.length===mk.length?'good':okNames.length?'warn':'bad',okNames.join('、')||'无解锁');
+    head.after(tiles);
     return root;
   }
   function updateCards(){
