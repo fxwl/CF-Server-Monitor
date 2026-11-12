@@ -8,7 +8,6 @@ import socket
 import fcntl
 import json
 import os
-import pwd
 from pathlib import Path
 import re
 import subprocess
@@ -21,8 +20,7 @@ import uuid
 BASE=Path('/opt/cfsm-quality')
 STATE=Path('/var/lib/cfsm-quality')
 URL='https://monitor.nnot.de'
-USER_HOME=Path(pwd.getpwnam('cfsm').pw_dir)
-CONF=USER_HOME/'.cf-probe/config.conf'
+CONF=Path('/etc/cfsm-quality/credentials.conf')
 MAX_LOG=2*1024*1024
 BASH='/usr/bin/bash'
 IP_TIMEOUT=2700
