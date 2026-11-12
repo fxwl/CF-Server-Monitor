@@ -531,7 +531,7 @@ export async function serveFrontend(request, env, settings = null) {
       // Attach our same-origin quality bridge without changing the pinned external theme.
       const isAnotherLumina = /^https:\/\/github\.com\/Vegas7\/CFSM-Theme-AnotherLuminaPlus\/tree\/[^/]+\/?$/i.test(effectiveThemeUrl);
       const bridgedHtml = isAnotherLumina
-        ? insertBeforeHeadClose(themeHtml, '<link rel="stylesheet" href="/quality/theme-bridge-v2.css"><script src="/quality/theme-bridge-v2.js" defer></script>')
+        ? insertBeforeHeadClose(themeHtml, '<link rel="stylesheet" href="/quality/theme-bridge-v3.css"><script src="/quality/theme-bridge-v3.js" defer></script>')
         : themeHtml;
       return buildHtmlResponse(bridgedHtml, settings, request, env, previewThemeUrl);
     }

@@ -1,0 +1,68 @@
+
+/* v3: preserve AnotherLuminaPlus card/panel typography, backgrounds and spacing. */
+.cfsmq-card-ip{font-size:11px;color:var(--text-tertiary);font-weight:500;white-space:nowrap;margin-left:5px;letter-spacing:0}
+.cfsmq-compact{margin-top:7px;padding:7px 0 1px;border-top:1px solid var(--hairline);display:grid;gap:4px;min-width:0;font-size:10px;line-height:1.45;color:var(--text-secondary)}
+.cfsmq-summary-row{display:grid;grid-template-columns:28px minmax(0,1fr);gap:5px;align-items:start}
+.cfsmq-summary-label{color:var(--text-tertiary);font-weight:650;white-space:nowrap;padding-top:2px}
+.cfsmq-summary-values{display:flex;flex-wrap:wrap;gap:3px 10px;min-width:0}
+.cfsmq-summary-entry{display:inline-flex;align-items:baseline;gap:3px;white-space:nowrap}
+.cfsmq-summary-entry b{color:var(--text-secondary);font-weight:600}
+.cfsmq-summary-entry span{color:var(--text-primary);font-weight:600}
+.cfsmq-state-good{color:var(--progress-network,#16a34a)!important}
+.cfsmq-state-bad{color:var(--progress-disk,#ef4444)!important}
+.cfsmq-summary-entry.cfsmq-state-good span{color:var(--progress-network,#16a34a)}
+.cfsmq-summary-entry.cfsmq-state-bad span{color:#ef4444}
+.cfsmq-detail{min-width:0;margin:0}
+.cfsmq-detail .instance-panel-header{margin-bottom:12px}
+.cfsmq-lead-grid{display:grid;grid-template-columns:minmax(255px,.72fr) minmax(0,1.78fr);gap:10px;align-items:start}
+.cfsmq-lead-grid .instance-info-group{height:100%;align-self:stretch}
+.cfsmq-lead-grid .cfsmq-risk{overflow:hidden}
+.cfsmq-detail-content{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 20px}
+.cfsmq-pane{border-top:1px solid var(--hairline);min-width:0;padding:12px 0 16px}
+.cfsmq-pane.cfsmq-wide{grid-column:1/-1}
+.cfsmq-pane-title{display:flex;align-items:baseline;flex-wrap:wrap;justify-content:space-between;gap:6px;margin-bottom:9px}
+.cfsmq-pane-title h3{font-size:13px;color:var(--text-primary);font-weight:650;margin:0;line-height:1.4}
+.cfsmq-pane-title>span{font-size:11px;color:var(--text-tertiary)}
+.cfsmq-scroll{min-width:0;max-width:100%;overflow-x:auto;scrollbar-width:thin}
+.cfsmq-table{border-collapse:collapse;width:100%;font-size:11px;line-height:1.5;color:var(--text-primary)}
+.cfsmq-table thead{background:var(--surface-elev)}
+.cfsmq-table th,.cfsmq-table td{border-bottom:1px solid var(--hairline);padding:6px 9px;text-align:left;vertical-align:middle}
+.cfsmq-table thead th{font-weight:600;color:var(--text-secondary);white-space:nowrap}
+.cfsmq-table tbody th{font-weight:600;white-space:nowrap}
+.cfsmq-table tr:last-child td,.cfsmq-table tr:last-child th{border-bottom:0}
+.cfsmq-risk-scroll{overflow-x:auto}
+.cfsmq-risk-table{font-size:10px;min-width:600px}
+.cfsmq-risk-table td{text-align:center;padding:5px 6px}
+.cfsmq-risk-table th{padding:5px 6px}
+.cfsmq-risk-table .cfsmq-source{text-align:left}
+.cfsmq-pairs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,175px),1fr));gap:0 15px}
+.cfsmq-pair{display:flex;justify-content:space-between;align-items:baseline;gap:8px;min-width:0;padding:5px 0;border-bottom:1px solid var(--hairline);font-size:11px}
+.cfsmq-pair span{color:var(--text-secondary);white-space:nowrap}
+.cfsmq-pair strong{font-weight:550;color:var(--text-primary);text-align:right;overflow-wrap:anywhere;min-width:0}
+.cfsmq-chart{display:block;width:100%;height:auto;max-height:230px;overflow:visible;color:var(--text-secondary)}
+.cfsmq-legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:10px;color:var(--text-secondary);margin-top:3px}
+.cfsmq-legend-item{display:inline-flex;align-items:center;gap:5px}
+.cfsmq-legend-item i{height:8px;width:8px;border-radius:50%}
+.cfsmq-route-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.cfsmq-route-item{border:1px solid var(--border-subtle);border-radius:10px;min-width:0;background:var(--surface-elev);overflow:hidden}
+.cfsmq-route-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:5px 8px;padding:9px 10px;cursor:pointer;list-style:none;font-size:11px}
+.cfsmq-route-heading::-webkit-details-marker{display:none}
+.cfsmq-route-heading strong{font-size:11px;font-weight:650;color:var(--text-primary)}
+.cfsmq-route-heading small{font-size:10px;color:var(--text-tertiary)}
+.cfsmq-route-heading>span{font-size:10px;color:var(--accent-500);white-space:nowrap}
+.cfsmq-route-text{font:10px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;word-break:break-word;padding:10px;margin:0;border-top:1px solid var(--hairline);max-height:450px;overflow:auto;color:var(--text-secondary)}
+.cfsmq-raw{font:10px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:6px 0;padding:10px;background:var(--surface-elev);border-radius:9px;max-height:440px;overflow:auto}
+.cfsmq-block{margin:5px 0 0;padding:4px 0;border-bottom:1px solid var(--hairline);font-size:11px}
+.cfsmq-block>summary{list-style-position:inside;color:var(--text-secondary);cursor:pointer;font-weight:550;padding:5px 0}
+.cfsmq-block[open]>summary{color:var(--accent-500)}
+.cfsmq-mail-grid{display:flex;flex-wrap:wrap;gap:5px 14px;margin-bottom:10px}
+.cfsmq-mail-grid .cfsmq-chip{padding:2px 0;font-size:11px}
+.cfsmq-chip{display:inline-flex;gap:3px;align-items:baseline}
+.cfsmq-chip b{font-weight:550;color:var(--text-secondary)}
+.cfsmq-chip>span{font-weight:600;color:var(--text-primary)}
+.cfsmq-muted,.cfsmq-placeholder{font-size:11px;color:var(--text-tertiary);line-height:1.6}
+.cfsmq-placeholder{display:flex;align-items:center;gap:10px;padding:10px}
+.cfsmq-retry{border:1px solid var(--border);border-radius:8px;background:var(--surface-elev);padding:5px 12px;color:var(--text-primary);font:inherit;cursor:pointer}
+.cfsmq-retry:hover{background:var(--hover-bg)}
+@media(max-width:1150px){.cfsmq-lead-grid{grid-template-columns:minmax(0,1fr)}.cfsmq-route-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.cfsmq-detail-content{grid-template-columns:1fr}.cfsmq-lead-grid{grid-template-columns:1fr}.cfsmq-route-list{grid-template-columns:1fr}.cfsmq-detail .instance-panel-header{margin-bottom:8px}.cfsmq-summary-values{gap:3px 7px}.cfsmq-compact{font-size:10px}.cfsmq-card-ip{font-size:10px;white-space:normal}}
