@@ -159,6 +159,10 @@ if ! [[ "$probe_id" =~ ^[0-9a-fA-F-]{20,80}$ ]] || [ "${#probe_secret}" -lt 16 ]
     exit 2
 fi
 unset probe_id probe_secret
+if [ "${CFSM_QUALITY_PREFLIGHT_ONLY:-0}" = 1 ]; then
+    echo 'CFSM quality installer preflight passed; no changes made'
+    exit 0
+fi
 if ! id cfsm-quality >/dev/null 2>&1; then
     useradd --system --home-dir /var/lib/cfsm-quality --shell /usr/sbin/nologin --no-create-home cfsm-quality
 fi
