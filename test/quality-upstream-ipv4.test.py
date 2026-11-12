@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test a narrowly scoped runtime fix for the two pinned NQ/IP scripts."""
+"""Regression tests for the tiny, verified Worker-to-upstream IPv4 bridge."""
 import hashlib
 import importlib.util
 import os
@@ -15,69 +15,42 @@ collector=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(collector)
 
 class UpstreamIPv4Tests(unittest.TestCase):
-    def _exercise_bash(self,trace_value,plain_value,expected,egress_ipv4=None):
-        with tempfile.TemporaryDirectory() as root:
-            directory=Path(root)
-            bindir=directory/'bin'
-            bindir.mkdir()
-            curl=bindir/'curl'
-            curl.write_text(
-                '#!/bin/sh\n'
-                'case " $* " in\n'
-                '  *cdn-cgi/trace*) printf "%s\\n" "$TRACE_VALUE";;\n'
-                '  *) printf "%s\\n" "$PLAIN_VALUE";;\n'
-                'esac\n'
-            )
-            curl.chmod(0o755)
-            env={**os.environ,'PATH':str(bindir)+':'+os.environ.get('PATH',''),
-                 'TRACE_VALUE':trace_value,'PLAIN_VALUE':plain_value}
-            if egress_ipv4 is not None:
-                env['CFSM_EGRESS_IPV4']=egress_ipv4
-            code=collector.IPV4_COMPAT+'\nCurlARG=""\nget_ipv4\nprintf "ip=%s\\n" "$IPV4"\n'
-            p=subprocess.run(['/bin/bash','-c',code],capture_output=True,text=True,env=env,timeout=6)
-            self.assertEqual(p.returncode,0,p.stderr)
-            self.assertEqual(p.stdout.strip(),'ip='+expected)
+    def _run_minimal_bridge(self, ipv4, define_only=False):
+        environment={'PATH':'/usr/bin:/bin','LC_ALL':'C','CFSM_EGRESS_IPV4':ipv4}
+        code=collector.IPV4_COMPAT
+        if not define_only:
+            code+='\nget_ipv4\nprintf "IP=%s\n" "$IPV4"\n'
+        return subprocess.run(['/bin/bash','--noprofile','--norc','-c',code],
+                              capture_output=True,text=True,env=environment,timeout=5)
 
-    def test_cloudflare_trace_is_preferred_and_validated(self):
-        self._exercise_bash('fl=abc\nip=198.51.100.24\ncolo=LAX',
-                            '203.0.113.42','198.51.100.24')
+    def test_definition_is_minimal_and_parses(self):
+        code=collector.IPV4_COMPAT
+        self.assertLess(len(code),100)
+        self.assertNotIn('curl',code)
+        self.assertNotIn('awk',code)
+        self.assertNotIn(' =~ ',code)
+        self.assertNotIn('eval',code)
+        self.assertEqual(self._run_minimal_bridge('1.1.1.1',define_only=True).returncode,0)
+        self.assertEqual(self._run_minimal_bridge('1.1.1.1').stdout.strip(),'IP=1.1.1.1')
 
-    def test_https_ip_endpoint_is_fallback(self):
-        self._exercise_bash('error=blocked','203.0.113.42','203.0.113.42')
+    def test_actual_worker_observed_ipv4_is_used_without_network(self):
+        p=self._run_minimal_bridge('8.8.8.8')
+        self.assertEqual(p.returncode,0,p.stderr)
+        self.assertEqual(p.stdout.strip(),'IP=8.8.8.8')
 
-    def test_invalid_ipv4_not_accepted(self):
-        self._exercise_bash('ip=redirect','HTTP/1.1 301 Moved Permanently','')
+    def test_missing_edge_ipv4_does_not_call_external_ip_services(self):
+        p=self._run_minimal_bridge('')
+        self.assertEqual(p.returncode,0,p.stderr)
+        self.assertEqual(p.stdout.strip(),'IP=')
 
-    def test_worker_observed_ipv4_does_not_require_external_services(self):
-        self._exercise_bash('error=blocked','HTTP/1.1 403','1.1.1.1',
-                            egress_ipv4='1.1.1.1')
-
-    def test_compatibility_path_avoids_bash_ere(self):
-        # The user's Debian 12 VPS returned SIGSEGV inside Bash while
-        # evaluating the source IPv4 helper, not a JSON or HTTP error.
-        self.assertNotIn(' =~ ',collector.IPV4_COMPAT)
-        self.assertIn('cfsm_ipv4_literal',collector.IPV4_COMPAT)
-
-    def test_invalid_edge_ipv4_is_rejected_by_bash_and_falls_back(self):
-        self._exercise_bash('fl=test\nip=198.51.100.24',
-                            '203.0.113.42','198.51.100.24',
-                            egress_ipv4='123.249.124.999')
-
-    def test_ipv4_literals_reject_bogus_octets_and_control_characters(self):
-        with tempfile.TemporaryDirectory() as root:
-            code=collector.IPV4_COMPAT+'\ncfsm_ipv4_literal "$CFSM_EGRESS_IPV4"\n'
-            for bad in ('999.1.1.1','1.1.1','bad','1.1.1.1\nInjected',''):
-                p=subprocess.run(['/bin/bash','-c',code],env={**os.environ,'CFSM_EGRESS_IPV4':bad},
-                                 capture_output=True,timeout=5)
-                self.assertNotEqual(p.returncode,0,bad)
-
-    def test_worker_source_ipv4_must_be_globally_routed(self):
-        self.assertEqual(collector.verified_source_ipv4('1.1.1.1'),'1.1.1.1')
-        for addr in ('10.0.0.1','127.0.0.1','192.168.1.1','2001:db8::1','123.249.124.999',None):
-            self.assertIsNone(collector.verified_source_ipv4(addr))
+    def test_worker_source_ipv4_validation_is_in_python(self):
+        for valid in ('1.1.1.1','8.8.8.8'):
+            self.assertEqual(collector.verified_source_ipv4(valid),valid)
+        for bad in ('10.0.0.1','127.0.0.1','192.168.1.1','2001:db8::1',
+                    '123.249.124.999','0.0.0.0','',None):
+            self.assertIsNone(collector.verified_source_ipv4(bad))
 
     def test_vendor_copy_is_patched_not_original(self):
-        # Fake minimal original with the same signature as both pinned scripts.
         original=b'#!/bin/bash\nget_ipv4(){\nlocal API_NET=("ip.sb")\nresponse=$(curl $CurlARG -s4 --max-time 2 "$p")\n}\n'
         digest=hashlib.sha1(b'blob '+str(len(original)).encode()+b'\0'+original).hexdigest()
         with tempfile.TemporaryDirectory() as root:
@@ -90,7 +63,7 @@ class UpstreamIPv4Tests(unittest.TestCase):
                 generated=collector.vendor_runtime_script(path,'ip',work)
             self.assertEqual(path.read_bytes(),original)
             self.assertNotIn(b'--max-time 2',generated.read_bytes())
-            self.assertIn(b'https://www.cloudflare.com/cdn-cgi/trace',generated.read_bytes())
+            self.assertIn(b'CFSM_EGRESS_IPV4',generated.read_bytes())
             self.assertEqual(generated.stat().st_mode & 0o777,0o700)
             p=subprocess.run(['/bin/bash','-n',str(generated)],capture_output=True,text=True)
             self.assertEqual(p.returncode,0,p.stderr)
