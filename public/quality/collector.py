@@ -4,6 +4,7 @@ Runs as isolated cfsm-quality user. Never changes the live metrics probe.
 """
 import datetime
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -25,6 +26,61 @@ NET_TIMEOUT=5400
 ANSI=re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
 IP_SHA='8e685686e1df89119d9aeb182a9dedbc88da19e3'
 NET_SHA='e91cd4963c2676da0e12bcece8ccb145e04a6735'
+
+# Git blob IDs for the pinned upstream shell scripts (unmodified originals).
+# Patch only a per-run copy: /opt/cfsm-quality/ip.sh and net.sh stay pristine.
+VENDOR_BLOBS={
+    'ip':'4dad5782d4095ed214b821951eba39353b5e0da4',
+    'net':'3f53747f00e6a00fe39534280a1c1dc6b71abbad',
+}
+IPV4_COMPAT=r'''get_ipv4(){
+IPV4=""
+local endpoint response
+# The original scripts query protocol-less URLs over HTTP and may interpret
+# HTTPS redirects or error pages as a missing IPv4 address.
+# Force HTTPS, follow only HTTPS redirects and validate the response.
+local API_NET=(
+  "https://api.ipify.org"
+  "https://ipv4.icanhazip.com"
+  "https://ipinfo.io/ip"
+  "https://checkip.amazonaws.com"
+  "https://ident.me"
+)
+for endpoint in "\${API_NET[@]}";do
+response=$(curl $CurlARG -4 -sSL --noproxy '*' --proto '=https' --proto-redir '=https' --connect-timeout 4 --max-time 8 "$endpoint" 2>/dev/null) || continue
+response=$(printf '%s' "$response"|tr -d '\r\n')
+if [[ $response =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]];then
+IPV4="$response"
+return 0
+fi
+done
+# Cloudflare trace is an additional independent HTTPS fallback.
+response=$(curl $CurlARG -4 -fsSL --noproxy '*' --connect-timeout 4 --max-time 8 'https://www.cloudflare.com/cdn-cgi/trace' 2>/dev/null) || return 0
+response=$(printf '%s\n' "$response"|awk -F= '$1=="ip"{print $2;exit}'|tr -d '\r\n')
+if [[ $response =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]];then
+IPV4="$response"
+fi
+}
+'''
+
+def vendor_runtime_script(path,kind,folder):
+    if path.is_symlink() or not path.is_file() or kind not in VENDOR_BLOBS:
+        raise ValueError('missing_pinned_script_'+kind)
+    source=path.read_bytes()
+    digest=hashlib.sha1(b'blob '+str(len(source)).encode('ascii')+b'\0'+source).hexdigest()
+    if digest!=VENDOR_BLOBS[kind]:
+        raise ValueError('upstream_script_checksum_mismatch_'+kind)
+    text=source.decode('utf-8')
+    pattern=r'(?ms)^get_ipv4\(\)\{\n.*?^\}\n'
+    original=re.search(pattern,text)
+    if not original or 'API_NET=' not in original.group(0) or 'curl $CurlARG -s4' not in original.group(0):
+        raise ValueError('upstream_ipv4_signature_changed_'+kind)
+    patched,count=re.subn(pattern,lambda _:IPV4_COMPAT,text,count=1)
+    if count!=1:raise ValueError('upstream_ipv4_patch_failed_'+kind)
+    script=folder/(kind+'-runtime.sh')
+    script.write_text(patched,encoding='utf-8')
+    script.chmod(0o700)
+    return script
 
 def note(event,**extra):
     print(json.dumps({'event':event,**extra},ensure_ascii=False),flush=True)
@@ -185,8 +241,9 @@ def probe(kind,server,secret,state):
     ts=int(time.time()*1000)
     folder=STATE/('run-'+kind+'-'+datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S'))
     folder.mkdir(mode=0o700)
+    script=vendor_runtime_script(path,kind,folder)
     json_file=folder/(kind+'.json')
-    args=[BASH,str(path),'-4','-p','-f','-n','-o',str(json_file)]
+    args=[BASH,str(script),'-4','-p','-f','-n','-o',str(json_file)]
     if kind=='net':args.append('-R')
     result=None
     try:
@@ -198,6 +255,10 @@ def probe(kind,server,secret,state):
     (folder/'console.log').write_text(output,encoding='utf-8')
     if not json_file.is_file() or json_file.stat().st_size>280000:
         note('probe_missing_json',kind=kind,exit_code=getattr(result,'returncode',124))
+        return False
+    if json_file.stat().st_size==0:
+        reason='ipv4_detection_failed' if ('IPV4不可用' in output or 'IPv4 is not available' in output) else 'no_json_output'
+        note('probe_empty_json',kind=kind,reason=reason,exit_code=getattr(result,'returncode',124))
         return False
     try:
         report=json.loads(json_file.read_text(encoding='utf-8'))
