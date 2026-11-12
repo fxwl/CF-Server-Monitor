@@ -45,14 +45,14 @@ class VendorMirrorTests(unittest.TestCase):
             fakebin=root/'bin'
             fakebin.mkdir()
             fake_id=fakebin/'id'
-            fake_id.write_text('#!/bin/sh\\nif [ "$1" = "-u" ]; then echo 0; else exec /usr/bin/id "$@"; fi\\n')
+            fake_id.write_text('#!/bin/sh\nif [ "$1" = "-u" ]; then echo 0; else exec /usr/bin/id "$@"; fi\n')
             fake_id.chmod(0o755)
             config=root/'config.conf'
             secret='test-secret-1234567890'
-            config.write_text(f'SERVER_ID=""\\nSECRET="{secret}"\\n')
+            config.write_text(f'SERVER_ID=""\nSECRET="{secret}"\n')
             def register():
                 time.sleep(0.3)
-                config.write_text(f'SERVER_ID="b791a352-ef74-4c57-99cb-ae880ca9d018"\\nSECRET="{secret}"\\n')
+                config.write_text(f'SERVER_ID="b791a352-ef74-4c57-99cb-ae880ca9d018"\nSECRET="{secret}"\n')
             registration=threading.Thread(target=register)
             registration.start()
             env={**os.environ, 'PATH':str(fakebin)+os.pathsep+os.environ.get('PATH',''),
@@ -64,7 +64,7 @@ class VendorMirrorTests(unittest.TestCase):
                                       env=env,capture_output=True,text=True,timeout=15)
             finally:
                 registration.join()
-            self.assertEqual(result.returncode,0,result.stdout+'\\n'+result.stderr)
+            self.assertEqual(result.returncode,0,result.stdout+'\n'+result.stderr)
             self.assertIn('preflight passed',result.stdout)
 
     def test_auto_discovery_without_wait_rejects_unbound_id(self):
@@ -73,15 +73,15 @@ class VendorMirrorTests(unittest.TestCase):
             fakebin=root/'bin'
             fakebin.mkdir()
             fake_id=fakebin/'id'
-            fake_id.write_text('#!/bin/sh\\nif [ "$1" = "-u" ]; then echo 0; else exec /usr/bin/id "$@"; fi\\n')
+            fake_id.write_text('#!/bin/sh\nif [ "$1" = "-u" ]; then echo 0; else exec /usr/bin/id "$@"; fi\n')
             fake_id.chmod(0o755)
             config=root/'config.conf'
-            config.write_text('SERVER_ID=""\\nSECRET="test-secret-1234567890"\\n')
+            config.write_text('SERVER_ID=""\nSECRET="test-secret-1234567890"\n')
             env={**os.environ,'PATH':str(fakebin)+os.pathsep+os.environ.get('PATH',''),
                  'CFSM_PROBE_CONFIG':str(config),'CFSM_QUALITY_PREFLIGHT_ONLY':'1'}
             result=subprocess.run(['bash',str(ROOT/'public'/'quality'/'install.sh')],
                                   env=env,capture_output=True,text=True,timeout=10)
-            self.assertEqual(result.returncode,2,result.stdout+'\\n'+result.stderr)
+            self.assertEqual(result.returncode,2,result.stdout+'\n'+result.stderr)
             self.assertIn('not registered',result.stderr)
 
 if __name__=='__main__':unittest.main()
