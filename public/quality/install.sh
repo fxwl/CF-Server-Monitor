@@ -50,10 +50,18 @@ HELP
 fi
 echo "Found CFSM credentials at: $probe_config"
 # Read data as text only, never source an untrusted config.
-probe_id=''
-probe_secret=''
-while IFS='=' read -r key val || [ -n "$key" ]; do
-    val="${val%
+probe_id="$(sed -n 's/^SERVER_ID=//p' "$probe_config" | sed 's/^"//; s/"$//')"
+probe_secret="$(sed -n 's/^SECRET=//p' "$probe_config" | sed 's/^"//; s/"$//')"
+if ! [[ "$probe_id" =~ ^[0-9a-fA-F-]{20,80}$ ]] || [ "${#probe_secret}" -lt 16 ]; then
+    echo 'The main probe config lacks a valid SERVER_ID or SECRET.' >&2
+    echo 'For an auto-discovered agent, register the server ID in CFSM admin first.' >&2
+    exit 2
+fi
+unset probe_id probe_secret
+if [ "${CFSM_QUALITY_PREFLIGHT_ONLY:-0}" = 1 ]; then
+    echo 'CFSM quality installer preflight passed; no changes made'
+    exit 0
+fi
 if ! id cfsm-quality >/dev/null 2>&1; then
     useradd --system --home-dir /var/lib/cfsm-quality --shell /usr/sbin/nologin --no-create-home cfsm-quality
 fi
