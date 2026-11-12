@@ -171,7 +171,7 @@
               v-for="server in group.servers"
               :key="server.id + '-' + currentView"
               :server="server"
-              :quality="qualityByServer[server.id]?.ip || null"
+              :quality="isDomesticQualityDisabled(server) ? null : (qualityByServer[server.id]?.ip || null)"
               :sys-config="sysConfig"
               :to="getServerLink(server)"
             />
@@ -404,11 +404,18 @@ import {
 
 const servers = ref([])
 const qualityByServer = ref({})
+const qualityDisabledServerIds=ref(new Set())
+const isDomesticQualityDisabled = server =>
+  String(server?.region||'').trim().toUpperCase()==='CN' ||
+  qualityDisabledServerIds.value.has(server?.id)
 let qualityRefreshTimer = null
 async function refreshQuality(){
   try { const response = await http.getByIndex('/api/quality/home',0,{autoRedirect:false});
-    if(response?.data?.servers) qualityByServer.value=response.data.servers;
-  }catch(_){} 
+    if(response?.data?.servers) {
+      qualityByServer.value=response.data.servers
+      qualityDisabledServerIds.value=new Set(response.data.disabled_server_ids||[])
+    }
+  }catch(_){}
 }
 const stats = ref({ total: '-', online: 0, offline: 0, globalNetRx: 0, globalNetTx: 0, globalSpeedIn: 0, globalSpeedOut: 0 })
 const unknownStats = ref(0)
