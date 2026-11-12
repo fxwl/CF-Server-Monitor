@@ -11,6 +11,7 @@
           <OsIcon :os="server.os" />
         </span>
         <span class="server-name">{{ server.name }}</span>
+          <small v-if="quality?.ip" class="iq-server-ip">{{ quality.ip }}</small>
       </div>
       <span class="status-label" :style="{ color: statusColor, borderColor: statusColor }">{{ statusText }}</span>
     </div>
@@ -100,6 +101,7 @@
         </div>
       </div>
     </div>
+    <IndependentQualityCard :quality="quality" />
     <div class="server-space"></div>
     <ServerLatencyPanel
       :show-three-net-details="sysConfig.show_three_net_details"
@@ -120,6 +122,7 @@
 <script setup>
 import OsIcon from './OsIcon.vue'
 import ServerLatencyPanel from './ServerLatencyPanel.vue'
+import IndependentQualityCard from './IndependentQualityCard.vue'
 import { DEFAULT_SERVER_CARD_CONFIG, useServerCardData } from '../composables/useServerCardData'
 
 const props = defineProps({
@@ -134,7 +137,8 @@ const props = defineProps({
   to: {
     type: String,
     default: ''
-  }
+  },
+  quality: { type: Object, default: null }
 })
 
 const {

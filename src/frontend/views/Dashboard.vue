@@ -171,6 +171,7 @@
               v-for="server in group.servers"
               :key="server.id + '-' + currentView"
               :server="server"
+              :quality="qualityByServer[server.id]?.ip || null"
               :sys-config="sysConfig"
               :to="getServerLink(server)"
             />
@@ -371,6 +372,7 @@
 
 <script setup>
 import { ref, computed, inject, nextTick, onMounted, onUnmounted, watch } from 'vue'
+import { http } from '../utils/http.js'
 import { useRouter } from 'vue-router'
 import TerminalHeader from '../components/TerminalHeader.vue'
 import ServerBarCard from '../components/ServerBarCard.vue'
@@ -401,6 +403,13 @@ import {
 } from '../utils/finance.js'
 
 const servers = ref([])
+const qualityByServer = ref({})
+let qualityRefreshTimer = null
+async function refreshQuality(){
+  try { const response = await http.getByIndex('/api/quality/home',0,{autoRedirect:false});
+    if(response?.data?.servers) qualityByServer.value=response.data.servers;
+  }catch(_){} 
+}
 const stats = ref({ total: '-', online: 0, offline: 0, globalNetRx: 0, globalNetTx: 0, globalSpeedIn: 0, globalSpeedOut: 0 })
 const unknownStats = ref(0)
 const appConfig = inject('appConfig', null)
@@ -1326,6 +1335,8 @@ onMounted(async () => {
     localStorage.setItem(STORAGE.VIEW_PREFERENCE, savedView)
   }
   await refreshData()
+  void refreshQuality()
+  qualityRefreshTimer=setInterval(refreshQuality,300000)
   await nextTick()
   scheduleFilterMeasurement()
   if (window.ResizeObserver && filterWrap.value) {
@@ -1358,6 +1369,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  if(qualityRefreshTimer)clearInterval(qualityRefreshTimer)
   document.removeEventListener('visibilitychange', handleVisibility)
   document.removeEventListener('click', closeFilterMoreOnOutsideClick)
   window.removeEventListener('resize', scheduleFilterMeasurement)

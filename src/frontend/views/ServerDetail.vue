@@ -27,6 +27,7 @@
       </div>
     </div>
 
+    <IndependentQualityDetail part="top" :data="independentQuality" />
     <div class="host-card">
       <div class="host-card-header">
         <div class="host-name">
@@ -366,6 +367,7 @@
         </div>
       </div>
     </div>
+    <IndependentQualityDetail part="bottom" :data="independentQuality" />
     </template>
 
     <Footer />
@@ -401,6 +403,8 @@ import { useRoute, useRouter } from 'vue-router'
 import TerminalHeader from '../components/TerminalHeader.vue'
 import Footer from '../components/Footer.vue'
 import OsIcon from '../components/OsIcon.vue'
+import IndependentQualityDetail from '../components/IndependentQualityDetail.vue'
+import { http } from '../utils/http.js'
 import LiveConnectionTimeoutModal from '../components/LiveConnectionTimeoutModal.vue'
 import { fetchServerDetail, fetchAllHistory, fetchConfig, formatBytes, createLiveSocket, getFlagRegionCode, isServerOnline, normalizeLiveSocketTimeoutMinutes } from '../utils/api.js'
 import { isAdminLoggedIn } from '../utils/http'
@@ -419,6 +423,12 @@ const route = useRoute()
 const router = useRouter()
 const appConfig = inject('appConfig', null)
 
+const independentQuality=ref(null)
+async function loadIndependentQuality(){
+  try {const response=await http.getByIndex('/api/quality/detail?id='+encodeURIComponent(serverId),Number(route.query.apiIndex)||0,{autoRedirect:false});
+    if(response?.data?.server_id)independentQuality.value=response.data;
+  }catch(_){}
+}
 let serverId = route.params.id
 if (!serverId) {
   const urlParams = new URLSearchParams(window.location.search)
@@ -1926,6 +1936,7 @@ watch([cpuChartRef, gpuChartRef, gpuMemChartRef, gpuClockChartRef, gpuPowerChart
 
 onMounted(() => {
   init()
+  void loadIndependentQuality()
 })
 
 onUnmounted(() => {

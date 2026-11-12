@@ -17,8 +17,14 @@ jobs:
       - run: npm ci
       - run: node --test test/agent-timestamp-guard.test.js
       - run: npm test
+      - run: node --test test/independent-quality.test.js
+      - run: python3 -m py_compile public/quality/collector.py
+      - run: bash -n public/quality/install.sh
+      - run: npm run test:history-query
       - run: bash scripts/build-icmp-agent.sh
+      - run: node scripts/verify-release.mjs
       - run: CFSM_SKIP_MKCERT=1 npm run build:frontend
+      - run: npx --no-install wrangler deploy --dry-run
       - run: |
           test -s dist/agent/install.sh
           test -s dist/agent/sha256sums.txt
