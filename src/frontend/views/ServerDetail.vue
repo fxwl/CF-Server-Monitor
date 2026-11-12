@@ -27,7 +27,7 @@
       </div>
     </div>
 
-    <IndependentQualityDetail part="top" :data="independentQuality" />
+    <IndependentQualityDetail v-if="!isDomesticQualityDisabled" part="top" :data="independentQuality" />
     <div class="host-card">
       <div class="host-card-header">
         <div class="host-name">
@@ -367,7 +367,7 @@
         </div>
       </div>
     </div>
-    <IndependentQualityDetail part="bottom" :data="independentQuality" />
+    <IndependentQualityDetail v-if="!isDomesticQualityDisabled" part="bottom" :data="independentQuality" />
     </template>
 
     <Footer />
@@ -424,6 +424,10 @@ const router = useRouter()
 const appConfig = inject('appConfig', null)
 
 const independentQuality=ref(null)
+const isDomesticQualityDisabled=computed(()=>
+  String(server.value?.region||'').trim().toUpperCase()==='CN' ||
+  independentQuality.value?.disabled===true
+)
 async function loadIndependentQuality(){
   try {const response=await http.getByIndex('/api/quality/detail?id='+encodeURIComponent(serverId),Number(route.query.apiIndex)||0,{autoRedirect:false});
     if(response?.data?.server_id)independentQuality.value=response.data;

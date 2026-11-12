@@ -5,17 +5,17 @@
     <div v-else>
       <div class="iq-facts">
         <label class="iq-pair"><span>配置范围</span><select v-model="scope"><option value="global">全部服务器</option><option value="server">指定服务器</option></select></label>
-        <label v-if="scope==='server'" class="iq-pair"><span>服务器</span><select v-model="serverId"><option v-for="s in servers" :key="s.id" :value="s.id">{{ s.name }}</option></select></label>
+        <label v-if="scope==='server'" class="iq-pair"><span>服务器</span><select v-model="serverId"><option v-for="s in servers" :key="s.id" :value="s.id">{{ s.name }}{{ disabledFor(s) ? '（中国节点：跳过检测）' : '' }}</option></select></label>
         <label class="iq-pair"><span>启用检测</span><input v-model="config.enabled" type="checkbox"></label>
         <label class="iq-pair"><span>IPQuality 间隔（小时）</span><input v-model.number="config.ip_hours" type="number" min="1" max="720"></label>
         <label class="iq-pair"><span>NetQuality 间隔（小时）</span><input v-model.number="config.net_hours" type="number" min="1" max="720"></label>
       </div>
       <div class="iq-settings-actions"><button type="button" :disabled="saving" @click="save">保存配置</button>
-        <button type="button" :disabled="saving||!serverId" @click="manual('ip')">立即执行 IPQuality</button>
-        <button type="button" :disabled="saving||!serverId" @click="manual('net')">立即执行 NetQuality</button>
+        <button type="button" :disabled="saving||!serverId||selectedDomestic" @click="manual('ip')">立即执行 IPQuality</button>
+        <button type="button" :disabled="saving||!serverId||selectedDomestic" @click="manual('net')">立即执行 NetQuality</button>
       </div>
       <div v-if="message" class="iq-settings-message">{{ message }}</div>
-      <p class="iq-settings-tip">VPS 每 15 分钟检查执行任务，完成后自动上报。只安装独立检测侧车，不替换现有 cf-probe。</p>
+      <p class="iq-settings-tip">所有服务器统一安装独立检测侧车，不替换 cf-probe；标记 CN 或 Cloudflare 识别为中国大陆的节点自动跳过 IPQuality / NetQuality，且页面不显示其结果。其他节点每 15 分钟检查执行任务，完成后自动上报。</p>
       <div class="iq-settings-command"><code>curl -fsSL https://monitor.nnot.de/quality/install.sh -o /tmp/cfsm-quality-install.sh &amp;&amp; sudo bash /tmp/cfsm-quality-install.sh</code></div>
     </div>
   </div>
@@ -24,8 +24,10 @@
 import { ref, watch, computed } from 'vue'
 import { http } from '../../../utils/http.js'
 const props=defineProps({activeTab:{type:String,required:true},servers:{type:Array,default:()=>[]},apiIndex:{type:Number,default:0}})
-const busy=ref(false),saving=ref(false),message=ref(''),settings=ref({global:{enabled:true,ip_hours:168,net_hours:168},overrides:{}})
+const busy=ref(false),saving=ref(false),message=ref(''),settings=ref({global:{enabled:true,ip_hours:168,net_hours:168},overrides:{},disabled_server_ids:[]})
 const scope=ref('global'),serverId=ref(''),config=ref({enabled:true,ip_hours:168,net_hours:168})
+const disabledFor=server=>String(server?.region||'').trim().toUpperCase()==='CN'||(settings.value.disabled_server_ids||[]).includes(server?.id)
+const selectedDomestic=computed(()=>disabledFor(props.servers.find(s=>s.id===serverId.value)))
 const effective=computed(()=>scope.value==='global'?settings.value.global:{...settings.value.global,...(settings.value.overrides[serverId.value]||{})})
 watch([scope,serverId,effective],()=>{config.value={...effective.value}},{immediate:true})
 watch(()=>props.servers,items=>{if(items.length&&!items.some(s=>s.id===serverId.value))serverId.value=items[0].id},{immediate:true})
@@ -51,6 +53,7 @@ async function save(){
 }
 async function manual(kind){
  if(!serverId.value)return
+ if(selectedDomestic.value){message.value='中国大陆节点自动跳过本检测';return}
  saving.value=true;message.value=''
  try{
   const r=await http.postByIndex('/api/quality/request',{id:serverId.value,kind},props.apiIndex,{autoRedirect:false})

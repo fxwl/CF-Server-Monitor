@@ -72,5 +72,23 @@ class RetryBackoffTests(unittest.TestCase):
                 self.assertIn('ip',final)
                 self.assertIn('net',final)
 
+    def test_domestic_country_skips_both_kinds_without_touching_retry_state(self):
+        for schedule in (
+            {'enabled': False, 'skip_reason': 'country_cn', 'requested': {'ip': 22, 'net': 33}},
+            {'enabled': True, 'requested': {'ip': 22, 'net': 33}},
+        ):
+            with self.subTest(schedule=schedule), tempfile.TemporaryDirectory() as temp:
+                state={'ip_retry':{'failures':1,'until':0},'net_retry':{'failures':1,'until':0}}
+                (Path(temp)/'last-run.json').write_text(json.dumps(state))
+                with (patch.object(quality,'STATE',Path(temp)),
+                      patch.object(quality,'creds',return_value=('0'*36,'fake-secret')),
+                      patch.object(quality,'request',return_value={
+                          'schema_version':1,'source_country':'CN',
+                          'source_ipv4':'123.249.124.176','schedule':schedule
+                      }),
+                      patch.object(quality,'probe',side_effect=AssertionError('China probes must not run'))):
+                    self.assertEqual(quality.run(),0)
+                    self.assertEqual(json.loads((Path(temp)/'last-run.json').read_text()),state)
+
 if __name__=='__main__':
     unittest.main()

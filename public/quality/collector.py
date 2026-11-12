@@ -339,6 +339,11 @@ def run():
         source_country=country if isinstance(country,str) and re.fullmatch(r'[A-Z]{2}',country) else None
         if source_country:note('edge_country',value=source_country)
         schedule=config.get('schedule') or {}
+        # Unified installer: mainland CN nodes only poll the authenticated
+        # schedule; never execute either foreign-oriented upstream probe.
+        if source_country=='CN' or schedule.get('skip_reason')=='country_cn':
+            note('domestic_quality_skipped',country=source_country or 'CN')
+            return 0
         if schedule.get('enabled') is False:
             note('disabled');return 0
         state=read_state()
