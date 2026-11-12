@@ -10,9 +10,11 @@ command -v apt-get >/dev/null || { echo 'Debian/Ubuntu only' >&2; exit 1; }
 probe_config=''
 if [ -n "${CFSM_PROBE_CONFIG:-}" ]; then
     case "$CFSM_PROBE_CONFIG" in /*) ;; *) echo 'CFSM_PROBE_CONFIG must be an absolute path' >&2; exit 2 ;; esac
-    test -f "$CFSM_PROBE_CONFIG" && test -r "$CFSM_PROBE_CONFIG" || {
-        echo 'Selected CFSM_PROBE_CONFIG is not a readable file' >&2; exit 2;
-    }
+    if [ "${CFSM_QUALITY_WAIT_FOR_REGISTRATION:-0}" != 1 ]; then
+        test -f "$CFSM_PROBE_CONFIG" && test -r "$CFSM_PROBE_CONFIG" || {
+            echo 'Selected CFSM_PROBE_CONFIG is not a readable file' >&2; exit 2;
+        }
+    fi
     probe_config="$CFSM_PROBE_CONFIG"
 else
     declare -a candidates=()
@@ -48,13 +50,25 @@ HELP
     fi
     probe_config="${candidates[0]}"
 fi
-echo "Found CFSM credentials at: $probe_config"
-# Read data as text only, never source an untrusted config.
-probe_id="$(sed -n 's/^SERVER_ID=//p' "$probe_config" | sed 's/^"//; s/"$//')"
-probe_secret="$(sed -n 's/^SECRET=//p' "$probe_config" | sed 's/^"//; s/"$//')"
-if ! [[ "$probe_id" =~ ^[0-9a-fA-F-]{20,80}$ ]] || [ "${#probe_secret}" -lt 16 ]; then
-    echo 'The main probe config lacks a valid SERVER_ID or SECRET.' >&2
-    echo 'For an auto-discovered agent, register the server ID in CFSM admin first.' >&2
+echo "Reading CFSM credentials at: $probe_config"
+# Never source the config or print credentials. Auto-discovery writes SERVER_ID
+# asynchronously after the main Go agent receives its first successful report.
+probe_credentials_ready() {
+    [ -f "$probe_config" ] && [ -r "$probe_config" ] || return 1
+    probe_id="$(sed -n 's/^SERVER_ID=//p' "$probe_config" | sed 's/^"//; s/"$//')"
+    probe_secret="$(sed -n 's/^SECRET=//p' "$probe_config" | sed 's/^"//; s/"$//')"
+    [[ "$probe_id" =~ ^[0-9a-fA-F-]{20,80}$ ]] && [ "${#probe_secret}" -ge 16 ]
+}
+if [ "${CFSM_QUALITY_WAIT_FOR_REGISTRATION:-0}" = 1 ]; then
+    echo 'Waiting for main probe registration (up to 180 seconds)...'
+    for ((attempt=0; attempt<90; attempt++)); do
+        if probe_credentials_ready; then break; fi
+        sleep 2
+    done
+fi
+if ! probe_credentials_ready; then
+    echo 'Main probe has not registered a valid SERVER_ID/SECRET; quality sidecar not installed.' >&2
+    echo 'Check the main cf-probe service and auto-discovery setting, then retry this installer.' >&2
     exit 2
 fi
 unset probe_id probe_secret
