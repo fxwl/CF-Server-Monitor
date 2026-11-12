@@ -39,7 +39,7 @@ IPV4=""
 local endpoint response
 # Prefer Cloudflare's authenticated observation of this probe's actual egress.
 # This avoids inaccessible overseas public-IP endpoints on domestic VPSes.
-if [[ ${CFSM_EGRESS_IPV4:-} =~ ^([0-9]{1,3}\\.){3}[0-9]{1,3}$ ]];then
+if [[ ${CFSM_EGRESS_IPV4:-} =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]];then
 IPV4="$CFSM_EGRESS_IPV4"
 return 0
 fi
