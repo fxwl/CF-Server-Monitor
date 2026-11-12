@@ -21,6 +21,8 @@ jobs:
       - run: python3 -m py_compile public/quality/collector.py
       - run: python3 test/quality-collector-error.test.py
       - run: python3 test/quality-upstream-ipv4.test.py
+      - run: python3 test/quality-vendor-mirror.test.py
+      - run: python3 test/quality-retry-backoff.test.py
       - run: bash -n public/quality/install.sh
       - run: |
           set -eu
