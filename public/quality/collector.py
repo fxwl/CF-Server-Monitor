@@ -78,8 +78,24 @@ def clean_log(text):
     return s[-MAX_LOG:]
 
 def routes_from_console(output):
-    # Only split observed official -R lines. Unknown/NoData remain unchanged.
-    header=re.compile(r'^\s*(北京|上海|广东|广州)\s*(电信|联通|移动)\s+(\S.*)
+    found={}
+    current=None
+    header=re.compile('^\\s*(北京|上海|广东|广州)\\s*(电信|联通|移动)\\s+(.*)$')
+    hop=re.compile('^\\s*[0-9]+(?:-[0-9]+)?\\s+')
+    for raw in output.replace(chr(13),chr(10)).splitlines():
+        line=raw.strip()
+        if not line: continue
+        m=header.match(line)
+        if m:
+            city='广东' if m.group(1)=='广州' else m.group(1)
+            current=(city,m.group(2))
+            found[current]=[line]
+        elif current and (line.startswith('地理路径：') or hop.match(line)):
+            if len(found[current])<80:found[current].append(line)
+    return [{'city':city,'carrier':carrier,'text':chr(10).join(found.get((city,carrier),[]))}
+            for city in ('北京','上海','广东') for carrier in ('电信','联通','移动')]
+
+def probe(kind,server,secret,state):
     path=BASE/('ip.sh' if kind=='ip' else 'net.sh')
     if not path.exists() or path.is_symlink():raise ValueError('missing_pinned_script_'+kind)
     ts=int(time.time()*1000)
