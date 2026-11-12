@@ -34,46 +34,8 @@ VENDOR_BLOBS={
     'ip':'4dad5782d4095ed214b821951eba39353b5e0da4',
     'net':'3f53747f00e6a00fe39534280a1c1dc6b71abbad',
 }
-IPV4_COMPAT=r'''cfsm_ipv4_literal() {
-# Avoid Bash ERE matching during IP discovery; rely on AWK.
-# The authenticated source IPv4 is also validated using Python ipaddress.
-printf '%s\n' "$1" | awk -F. '
-NF!=4 {exit 1}
-{ for(i=1;i<=4;i++) {
-    if($i !~ /^[0-9]+$/ || length($i)>3 || ($i+0)>255) exit 1
-} }
-'
-}
-get_ipv4(){
-IPV4=""
-local endpoint response
-# Prefer authenticated Cloudflare edge IPv4; no third-party lookup.
-if [ -n "${CFSM_EGRESS_IPV4:-}" ] && cfsm_ipv4_literal "$CFSM_EGRESS_IPV4";then
-IPV4="$CFSM_EGRESS_IPV4"
-return 0
-fi
-# No edge IPv4? Try validated HTTPS endpoints without Bash ERE.
-response=$(curl $CurlARG -4 -fsSL --noproxy '*' --connect-timeout 4 --max-time 8 'https://www.cloudflare.com/cdn-cgi/trace' 2>/dev/null) || response=""
-response=$(printf '%s\n' "$response"|awk -F= '$1=="ip"{print $2;exit}'|tr -d '\r\n')
-if cfsm_ipv4_literal "$response";then
-IPV4="$response"
-return 0
-fi
-local API_NET=(
-  "https://api.ipify.org"
-  "https://ipv4.icanhazip.com"
-  "https://ipinfo.io/ip"
-  "https://checkip.amazonaws.com"
-  "https://ident.me"
-)
-for endpoint in "${API_NET[@]}";do
-response=$(curl $CurlARG -4 -sSL --noproxy '*' --proto '=https' --proto-redir '=https' --connect-timeout 4 --max-time 8 "$endpoint" 2>/dev/null) || continue
-response=$(printf '%s' "$response"|tr -d '\r\n')
-if cfsm_ipv4_literal "$response";then
-IPV4="$response"
-return 0
-fi
-done
+IPV4_COMPAT=r'''get_ipv4(){
+IPV4="${CFSM_EGRESS_IPV4:-}"
 }
 '''
 
