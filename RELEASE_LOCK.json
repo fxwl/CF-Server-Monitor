@@ -1,16 +1,24 @@
 {
-  "release": "2.8.7-fuzhou-monitor-only.20261112",
+  "release": "2.8.7-independent-quality.20261112",
   "base": "df4872eaf9c5afdcdaa57623316803bfcd30dec0",
   "retained_fixes": "031206f972e3ed0915f694f1046af585a1b5758a",
   "source_pre_rollback": "7af812bda435d5eaa6df9261f6769fc06dfc607e",
   "original_worker_entry": "src/index.js",
   "theme": "Vegas7/CFSM-Theme-AnotherLuminaPlus",
   "keep_primary_agent": true,
-  "keep_fuzhou_ping": ["cu", "ct", "cm"],
-  "ip_quality_diagnostics": false,
-  "route_tracing": false,
-  "media_ai_unlock": false,
+  "keep_fuzhou_ping": [
+    "cu",
+    "ct",
+    "cm"
+  ],
+  "ip_quality_diagnostics": true,
+  "route_tracing": true,
+  "media_ai_unlock": true,
   "nodequality": false,
   "auto_upstream_sync": false,
-  "preserve_existing_metrics_and_settings": true
+  "preserve_existing_metrics_and_settings": true,
+  "independent_scripts": [
+    "xykt/IPQuality",
+    "xykt/NetQuality"
+  ]
 }
