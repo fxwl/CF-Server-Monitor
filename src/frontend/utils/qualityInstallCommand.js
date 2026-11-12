@@ -12,7 +12,13 @@ export function attachQualitySidecar(mainCommand, { baseUrl, installMode = 'cfsm
         'CFSM_MAIN_HOME=${CFSM_MAIN_HOME:-/home/cfsm}',
         'CFSM_MAIN_CONFIG="${CFSM_MAIN_HOME%/}/.cf-probe/config.conf"'
       ]
-    : ['CFSM_MAIN_CONFIG="$HOME/.cf-probe/config.conf"']
+    : [
+        'if [ "$(id -u)" -eq 0 ]; then',
+        '  CFSM_MAIN_CONFIG="/etc/config/cf-probe/config.conf"',
+        'else',
+        '  CFSM_MAIN_CONFIG="$HOME/.cf-probe/config.conf"',
+        'fi'
+      ]
   return [
     '(',
     'set -e',
