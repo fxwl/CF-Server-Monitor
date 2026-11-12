@@ -91,7 +91,8 @@ export async function qualitySchedule(db,id) {
   const global=await lookupOpts(db,'global');
   const local=await lookupOpts(db,'server:'+id);
   const v={...DEFAULTS,...clean(global),...clean(local)};
-  return {enabled:v.enabled!==false,ip_hours:validHours(v.ip_hours)?v.ip_hours:DEFAULTS.ip_hours,net_hours:validHours(v.net_hours)?v.net_hours:DEFAULTS.net_hours};
+  const [ipr,nr]=await Promise.all([lookupOpts(db,'request:'+id+':ip'),lookupOpts(db,'request:'+id+':net')]);
+  return {enabled:v.enabled!==false,ip_hours:validHours(v.ip_hours)?v.ip_hours:DEFAULTS.ip_hours,net_hours:validHours(v.net_hours)?v.net_hours:DEFAULTS.net_hours,requested:{ip:typeof ipr==='number'?ipr:0,net:typeof nr==='number'?nr:0}};
 }
 async function qualityUpload(request,env){
   const {id,source}=await agentAuth(request,env);
@@ -152,7 +153,7 @@ async function optionsDetail(env){
 }
 export async function handleIndependentQuality(request,env,loadSettings,checkAuth){
   const u=new URL(request.url),path=u.pathname;
-  const paths=new Set(['/api/quality/home','/api/quality/detail','/api/quality/report','/api/quality/config','/api/quality/settings']);
+  const paths=new Set(['/api/quality/home','/api/quality/detail','/api/quality/report','/api/quality/config','/api/quality/settings','/api/quality/request']);
   if(!paths.has(path))return null;
   try {
     const now=Date.now();
@@ -163,6 +164,15 @@ export async function handleIndependentQuality(request,env,loadSettings,checkAut
     }
     if(!['GET','POST'].includes(request.method))throw new QualityError('method_not_allowed',405);
     const settings=await loadSettings(env.DB),admin=await checkAuth(request,env,settings);
+    if(path==='/api/quality/request'){
+      if(!admin || request.method!=='POST')throw new QualityError('unauthorized',401);
+      await ensureQualityTables(env.DB);
+      const data=await readPayload(request);if(!goodId(data?.id)||!KINDS.has(data?.kind))throw new QualityError('invalid_request');
+      await safeServer(env.DB,data.id);
+      const at=Date.now(),key='request:'+data.id+':'+data.kind;
+      await env.DB.prepare('INSERT INTO cfsm_quality_options(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value').bind(key,JSON.stringify(at)).run();
+      return json({requested:true,kind:data.kind,at});
+    }
     if(path==='/api/quality/settings'){
       if(!admin)throw new QualityError('unauthorized',401);
       await ensureQualityTables(env.DB);
