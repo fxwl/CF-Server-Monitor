@@ -82,6 +82,18 @@ apt-get install -y -qq --no-install-recommends python3 curl jq bc dnsutils netca
 
 # Optional NextTrace for route detail. On mainland networks GitHub can be
 # unreachable; missing NextTrace must not abort independent diagnostics.
+# For overseas nodes, attempt the official repository automatically; for
+# mainland nodes, prefer local traceroute and let administrators opt in.
+if [ -z "${CFSM_QUALITY_TRY_NEXTTRACE_GITHUB+x}" ]; then
+    cf_country="$(curl -4fsSL --noproxy '*' --connect-timeout 3 --max-time 8 \
+      'https://www.cloudflare.com/cdn-cgi/trace' 2>/dev/null | \
+      awk -F= '$1=="loc" {print $2; exit}' || true)"
+    if [ "$cf_country" = CN ]; then
+        CFSM_QUALITY_TRY_NEXTTRACE_GITHUB=0
+    else
+        CFSM_QUALITY_TRY_NEXTTRACE_GITHUB=1
+    fi
+fi
 if ! command -v nexttrace >/dev/null 2>&1; then
     echo 'NextTrace missing; checking existing Debian package indexes...'
     if apt-cache show nexttrace >/dev/null 2>&1; then
