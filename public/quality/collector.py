@@ -250,7 +250,7 @@ def routes_from_console(output):
     return [{'city':city,'carrier':carrier,'text':chr(10).join(found.get((city,carrier),[]))}
             for city in ('北京','上海','广东') for carrier in ('电信','联通','移动')]
 
-def probe(kind,server,secret,state,source_ipv4=None):
+def probe(kind,server,secret,state,source_ipv4=None,source_country=None):
     path=BASE/('ip.sh' if kind=='ip' else 'net.sh')
     if not path.exists() or path.is_symlink():raise ValueError('missing_pinned_script_'+kind)
     ts=int(time.time()*1000)
@@ -289,6 +289,7 @@ def probe(kind,server,secret,state,source_ipv4=None):
         note('invalid_probe_structure',kind=kind)
         return False
     payload={'schema_version':1,'kind':kind,'run_id':str(uuid.uuid4()),'started_at':ts,'report':report}
+    if source_country:payload['source_country']=source_country
     if kind=='net':
         payload['route_text']=output[-105000:]
         payload['routes']=routes_from_console(output)
@@ -327,6 +328,9 @@ def run():
         source_ipv4=verified_source_ipv4(config.get('source_ipv4'))
         if source_ipv4: note('edge_ipv4_selected',ip=source_ipv4)
         else: note('edge_ipv4_unavailable')
+        country=config.get('source_country')
+        source_country=country if isinstance(country,str) and re.fullmatch(r'[A-Z]{2}',country) else None
+        if source_country:note('edge_country',value=source_country)
         schedule=config.get('schedule') or {}
         if schedule.get('enabled') is False:
             note('disabled');return 0
@@ -352,7 +356,7 @@ def run():
                 note('probe_retry_wait',kind=kind,seconds_left=(retry_until-now+999)//1000)
                 continue
             note('probe_start',kind=kind,forced=forced)
-            if probe(kind,server,secret,state,source_ipv4):
+            if probe(kind,server,secret,state,source_ipv4,source_country):
                 if forced:state[kind+'_request']=request_id
                 state.pop(kind+'_retry',None)
                 write_state(state)
