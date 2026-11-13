@@ -110,8 +110,8 @@ const SERVER_INSERT_SQL = `
     FROM pref
   )
   INSERT INTO servers
-    (id, name, server_group, region, "interface", sort_order, history_partition_id, timestamp)
-  SELECT ?, ?, ?, ?, ?, sort_order, pid, ?
+    (id, name, server_group, region, "interface", ping_mode, sort_order, history_partition_id, timestamp)
+  SELECT ?, ?, ?, ?, ?, 'icmp', sort_order, pid, ?
   FROM next
   WHERE pid IS NOT NULL
 `;

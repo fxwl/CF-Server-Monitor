@@ -22,6 +22,7 @@ await db.prepare(`
     server_group TEXT,
     region TEXT,
     "interface" TEXT,
+    ping_mode TEXT DEFAULT 'tcp',
     sort_order INTEGER,
     history_partition_id INTEGER,
     timestamp INTEGER
@@ -46,6 +47,8 @@ test('SERVER_INSERT_SQL 空表取 1 号分区并返回 changes=1', async () => {
   assert.equal(row.history_partition_id, 1);
   assert.equal(row.sort_order, 0);
   assert.equal(row.server_group, 'Default');
+  // Explicit insert must override the legacy SQLite TCP default.
+  assert.equal(row.ping_mode, 'icmp');
 });
 
 test('SERVER_INSERT_SQL 删除后复用空洞', async () => {
