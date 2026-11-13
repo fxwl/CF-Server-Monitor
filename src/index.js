@@ -1,4 +1,5 @@
 import { initDatabase, weeklyCleanup, getMetricsHistory, clearHistory } from './database/schema.js';
+import { ensureHistoryServerTimestampIndex } from './database/historyIndexes.js';
 import { handleIndependentQuality } from './quality/independent-quality.js';
 import { checkOfflineNodes, checkExpiringServers, checkResourceAlerts } from './services/notification.js';
 import { updateDatabase } from './database/updateDatabase.js';
@@ -500,6 +501,12 @@ export default {
         debug('[Cron] 开始执行每周数据清理任务（表轮换）');
         await weeklyCleanup(env.DB);
         debug('[Cron] 每周数据清理任务完成');
+      }
+      // 每小时确认辅助索引存在；即使前一天 D1 配额耗尽，重置后也会自动补建。
+      try {
+        await ensureHistoryServerTimestampIndex(env.DB);
+      } catch (error) {
+        console.warn('[D1] 历史辅助索引维护延后:', error?.message || error);
       }
       debug('[Cron] 检查是否到达服务器到期检测时间');
       await checkExpiringServers(env.DB, { scheduled: true, now: now.getTime() });

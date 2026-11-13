@@ -3,6 +3,7 @@ import { saveSiteOptions, debug, normalizeLongHistoryPoints, DEFAULT_LONG_HISTOR
 import { attachDiskMetricsObject, flattenDiskMetrics, isDisabledProbeMetric, normalizeProbeMetricRow } from '../utils/metrics.js';
 import { ensureServerOptimization, buildHistoryId, getServerHistoryInfo, getHistoryIdRange } from './indexOptimization.js';
 import { addHistoryColumns } from './updateDatabase.js';
+import { ensureHistoryServerTimestampIndex } from './historyIndexes.js';
 import {
   buildSparseHistoryQuery,
   shouldUseSparseHistorySampling
@@ -117,8 +118,14 @@ export async function initDatabase(db) {
       await ensureServerOptimization(db);
     }
 
-    // 确保 metrics_history 表存在（主键 id 已编码分区与时间，无需二级索引）
+    // 主键 id 继续用于日常按分区范围读取；辅助索引用于安全的按服务器/时间排查。
     await db.prepare(createHistoryTableSql('metrics_history')).run();
+    try {
+      await ensureHistoryServerTimestampIndex(db);
+    } catch (error) {
+      // 索引是辅助能力；D1 额度耗尽时不能阻断监控初始化，整点任务负责重试。
+      console.warn('[D1] 历史辅助索引暂未就绪，整点任务将重试:', error?.message || error);
+    }
 
     debug('✅ 数据库初始化完成');
     dbInitialized = true;
